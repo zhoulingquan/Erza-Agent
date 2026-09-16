@@ -122,7 +122,7 @@
   上下文窗口解析、HF-ModelScope 自动查询、学习表;自包含,仅依赖 `config`)。
   自 `erza/cli/models.py` 整文件归位至此;消费方(`providers/factory` /
   `agent/loop` / `agent/_provider_switching` / `agent/model_presets` /
-  `webui/model_settings_api` / `cli/onboard` / `tests/conftest.py`)随之改指新家,
+   `channels/websocket/api/model_settings_api` / `cli/onboard` / `tests/conftest.py`)随之改指新家,
   共消 6 处下层对 cli 入口层的反向导入。
 - 新守护(W8-2):sink 八包(providers / utils / security / config / bus / ledger /
   memory / tools)禁止 import cli(裸形式与全限定 `erza.cli.*` 同判),

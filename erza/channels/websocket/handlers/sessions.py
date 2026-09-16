@@ -6,14 +6,14 @@ from pathlib import Path
 
 from websockets.http11 import Response
 
-from erza.session.webui_turns import websocket_turn_wall_started_at
-from erza.utils.subagent_channel_display import scrub_subagent_messages_for_channel
-from erza.webui.thread_disk import delete_webui_thread
-from erza.webui.transcript import (
+from erza.channels.websocket.api.thread_disk import delete_webui_thread
+from erza.channels.websocket.api.transcript import (
     build_webui_thread_response,
     rewind_webui_transcript_to_user,
     rewrite_local_markdown_images,
 )
+from erza.session.webui_turns import websocket_turn_wall_started_at
+from erza.utils.subagent_channel_display import scrub_subagent_messages_for_channel
 
 from .._http_router import RouteContext, RouteDeps, router
 from .._http_routes import (

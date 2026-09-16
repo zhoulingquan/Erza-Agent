@@ -26,8 +26,8 @@ from erza.channels.websocket._chunked_header import (  # noqa: F401 — re-expor
     _collect_chunked_header,
     collect_chunked_header,
 )
+from erza.channels.websocket.api.settings_api import WebUISettingsError
 from erza.security.tokens import constant_time_equals
-from erza.webui.settings_api import WebUISettingsError
 
 # URL query 中出现的敏感参数名模式(用于废弃告警, 不记录参数值本身)。
 _SENSITIVE_QUERY_KEY_RE = re.compile(

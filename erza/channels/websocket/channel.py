@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import mimetypes
 import secrets
 import ssl
 import time
@@ -32,6 +31,24 @@ from erza import __version__
 from erza.bus.events import OUTBOUND_META_AGENT_UI, OutboundMessage
 from erza.bus.queue import MessageBus
 from erza.channels.base import BaseChannel
+from erza.channels.websocket.api.mcp_presets_api import (
+    normalize_mcp_preset_mentions,
+)
+from erza.channels.websocket.api.media_api import (
+    sign_media_path,
+    sign_or_stage_media_path,
+)
+from erza.channels.websocket.api.settings_api import (
+    decorate_settings_payload,
+    runtime_capabilities,
+)
+from erza.channels.websocket.api.transcript import (
+    append_transcript_object,
+    rewrite_local_markdown_images,
+)
+from erza.channels.websocket.api.workspaces import (
+    WebUIWorkspaceController,
+)
 from erza.config.paths import get_media_dir, get_workspace_path
 from erza.security.tokens import constant_time_equals
 from erza.security.workspace_access import (
@@ -44,24 +61,6 @@ from erza.tools.mcp import request_mcp_reload
 from erza.utils.media_decode import (
     FileSizeExceededError,
     save_base64_data_url,
-)
-from erza.webui.mcp_presets_api import (
-    normalize_mcp_preset_mentions,
-)
-from erza.webui.media_api import (
-    sign_media_path,
-    sign_or_stage_media_path,
-)
-from erza.webui.settings_api import (
-    decorate_settings_payload,
-    runtime_capabilities,
-)
-from erza.webui.transcript import (
-    append_transcript_object,
-    rewrite_local_markdown_images,
-)
-from erza.webui.workspaces import (
-    WebUIWorkspaceController,
 )
 
 # Importing the handlers package triggers ``@router.route(...)`` registration
@@ -126,6 +125,7 @@ from ._ws_upgrade import (  # noqa: F401
     _safe_host_header,
     _strip_trailing_slash,
 )
+from .static.serve import serve_static
 
 if TYPE_CHECKING:
     from erza.session.manager import SessionManager
@@ -960,48 +960,7 @@ class WebSocketChannel(BaseChannel):
     def _serve_static(self, request_path: str) -> Response | None:
         """Resolve *request_path* against the built SPA directory; SPA fallback to index.html."""
         assert self._static_dist_path is not None
-        rel = request_path.lstrip("/")
-        if not rel:
-            rel = "index.html"
-        # Reject path-traversal attempts and absolute targets.
-        if ".." in rel.split("/") or rel.startswith("/"):
-            return _http_error(403, "Forbidden")
-        candidate = (self._static_dist_path / rel).resolve()
-        try:
-            candidate.relative_to(self._static_dist_path)
-        except ValueError:
-            return _http_error(403, "Forbidden")
-        if not candidate.is_file():
-            # SPA history-mode fallback: unknown routes serve index.html so the
-            # client-side router can render them.
-            index = self._static_dist_path / "index.html"
-            if index.is_file():
-                candidate = index
-            else:
-                return None
-        try:
-            body = candidate.read_bytes()
-        except OSError as e:
-            self.logger.warning("static: failed to read {}: {}", candidate, e)
-            return _http_error(500, "Internal Server Error")
-        ctype, _ = mimetypes.guess_type(candidate.name)
-        if ctype is None:
-            ctype = "application/octet-stream"
-        if ctype.startswith("text/") or ctype in {"application/javascript", "application/json"}:
-            ctype = f"{ctype}; charset=utf-8"
-        # Hash-named build assets are cache-friendly; index.html must stay fresh.
-        if candidate.name == "index.html":
-            cache = "no-cache"
-        elif "/brand/" in request_path:
-            cache = "no-cache"
-        else:
-            cache = "public, max-age=31536000, immutable"
-        return _http_response(
-            body,
-            status=200,
-            content_type=ctype,
-            extra_headers=[("Cache-Control", cache)],
-        )
+        return serve_static(self._static_dist_path, request_path)
 
     def _authorize_websocket_handshake(
         self, connection: Any, request: WsRequest, query: dict[str, list[str]]

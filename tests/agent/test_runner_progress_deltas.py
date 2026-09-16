@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from erza.agent.runner import AgentRunner, AgentRunSpec
 from erza.agent.planning_policy import PlanningPolicy
+from erza.agent.runner import AgentRunner, AgentRunSpec
 from erza.config.schema import AgentDefaults
 from erza.providers.base import LLMResponse, ToolCallRequest
 

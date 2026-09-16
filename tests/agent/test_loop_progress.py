@@ -251,7 +251,7 @@ class TestToolEventProgress:
             workspace=tmp_path,
             model="test-model",
             planning_policy=PlanningPolicy(force_plan=False),  # A-1: skip L2 router
-        
+
             enable_reflection=False)
 
         tool_call = ToolCallRequest(id="tc1", name="exec", arguments={"command": "ls"})
@@ -462,7 +462,7 @@ class TestToolEventProgress:
             workspace=tmp_path,
             model="openai-codex/gpt-5.5",
             planning_policy=PlanningPolicy(force_plan=False),  # A-1: skip L2 router
-        
+
             enable_reflection=False)
         loop.tools.get_definitions = MagicMock(return_value=[])
         loop.consolidator.maybe_consolidate_by_tokens = AsyncMock(return_value=False)  # type: ignore[method-assign]
@@ -510,7 +510,7 @@ class TestToolEventProgress:
             workspace=tmp_path,
             model="openai-codex/gpt-5.5",
             planning_policy=PlanningPolicy(force_plan=False),  # A-1: skip L2 router
-        
+
             enable_reflection=False)
         loop.tools.get_definitions = MagicMock(return_value=[])
         loop.consolidator.maybe_consolidate_by_tokens = AsyncMock(return_value=False)  # type: ignore[method-assign]
@@ -663,7 +663,7 @@ class TestToolEventProgress:
             workspace=tmp_path,
             model="test-model",
             planning_policy=PlanningPolicy(force_plan=False),  # A-1: skip L2 router
-        
+
             enable_reflection=False)
         loop.tools.get_definitions = MagicMock(return_value=[])
         loop.consolidator.maybe_consolidate_by_tokens = AsyncMock(return_value=False)  # type: ignore[method-assign]

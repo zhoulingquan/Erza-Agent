@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from erza.session.manager import SessionManager
-from erza.webui.thread_disk import delete_webui_thread, webui_thread_file_path
-from erza.webui.transcript import (
+from erza.channels.websocket.api.thread_disk import delete_webui_thread, webui_thread_file_path
+from erza.channels.websocket.api.transcript import (
     append_transcript_object,
     delete_webui_transcript,
     webui_transcript_path,
 )
+from erza.session.manager import SessionManager
 
 
 def test_delete_webui_thread_removes_legacy_json_and_transcript(tmp_path, monkeypatch) -> None:

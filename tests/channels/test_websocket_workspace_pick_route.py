@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from erza.channels.websocket._http_router import RouteContext, router
+from erza.channels.websocket.api.folder_picker import FolderPickerError
 from erza.channels.websocket.handlers import misc
-from erza.webui.folder_picker import FolderPickerError
 
 
 def _ctx(
@@ -105,7 +105,7 @@ def test_pick_folder_rejects_relative_result(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_folder_picker_lock_rejects_concurrent_dialogs() -> None:
-    from erza.webui import folder_picker
+    from erza.channels.websocket.api import folder_picker
 
     acquired = folder_picker._PICKER_LOCK.acquire(blocking=False)
     assert acquired is True

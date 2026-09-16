@@ -1,10 +1,16 @@
 """Tests for Feishu streaming (send_delta) via CardKit streaming API."""
 
+import importlib.util
 import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+
+if importlib.util.find_spec("lark_oapi") is None:
+    pytest.skip(
+        "Feishu dependencies not installed (lark-oapi)", allow_module_level=True
+    )
 
 from erza.bus.events import OutboundMessage
 from erza.bus.queue import MessageBus

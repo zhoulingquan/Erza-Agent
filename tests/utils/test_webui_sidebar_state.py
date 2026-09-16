@@ -1,6 +1,6 @@
 import json
 
-from erza.webui.sidebar_state import (
+from erza.channels.websocket.api.sidebar_state import (
     default_webui_sidebar_state,
     read_webui_sidebar_state,
     webui_sidebar_state_path,

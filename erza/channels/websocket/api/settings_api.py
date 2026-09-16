@@ -9,7 +9,7 @@
 - ``runtime_settings_api``: Runtime(heartbeat/dream)
 
 ``settings_payload`` 在此聚合各域 payload builder 组装完整 payload,
-保持 ``from erza.webui.settings_api import ...`` 的向后兼容。
+保持 ``from erza.channels.websocket.api.settings_api import ...`` 的向后兼容。
 """
 
 from __future__ import annotations

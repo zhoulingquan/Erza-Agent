@@ -28,11 +28,11 @@ from erza.channels.websocket import (
     _parse_request_path,
     publish_runtime_model_update,
 )
+from erza.channels.websocket.api.settings_api import settings_payload, update_provider_settings
 from erza.config.loader import load_config, save_config
 from erza.config.schema import Config, ModelPresetConfig
 from erza.session import webui_turns as wth
 from erza.session.manager import SessionManager
-from erza.webui.settings_api import settings_payload, update_provider_settings
 
 # -- Shared helpers (aligned with test_websocket_integration.py) ---------------
 
@@ -62,7 +62,7 @@ def bus() -> MagicMock:
 @pytest.fixture(autouse=True)
 def isolate_webui_workspace_state(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(
-        "erza.webui.workspaces.get_webui_dir",
+        "erza.channels.websocket.api.workspaces.get_webui_dir",
         lambda: tmp_path / "webui",
     )
 
@@ -2424,7 +2424,7 @@ def test_handle_webui_thread_get_returns_json(tmp_path, monkeypatch) -> None:
     from websockets.datastructures import Headers
     from websockets.http11 import Request
 
-    from erza.webui.transcript import append_transcript_object
+    from erza.channels.websocket.api.transcript import append_transcript_object
 
     monkeypatch.setattr("erza.config.paths.get_data_dir", lambda: tmp_path)
     key = "websocket:c1"

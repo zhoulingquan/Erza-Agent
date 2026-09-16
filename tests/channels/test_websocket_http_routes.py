@@ -143,7 +143,7 @@ async def test_mcp_presets_routes_require_token_and_return_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "erza.webui.mcp_presets_api.mcp_presets_payload",
+        "erza.channels.websocket.api.mcp_presets_api.mcp_presets_payload",
         lambda: {
             "presets": [
                 {
@@ -194,11 +194,11 @@ async def test_mcp_presets_routes_require_token_and_return_payload(
         }
 
     monkeypatch.setattr(
-        "erza.webui.mcp_presets_api.mcp_presets_action",
+        "erza.channels.websocket.api.mcp_presets_api.mcp_presets_action",
         _mcp_preset_action,
     )
     monkeypatch.setattr(
-        "erza.webui.mcp_presets_api.custom_mcp_action",
+        "erza.channels.websocket.api.mcp_presets_api.custom_mcp_action",
         _custom_action,
     )
 
@@ -370,7 +370,7 @@ async def test_session_delete_removes_file(
 ) -> None:
     monkeypatch.setattr("erza.config.paths.get_data_dir", lambda: tmp_path)
     sm = _seed_session(tmp_path, key="websocket:doomed")
-    from erza.webui.transcript import append_transcript_object
+    from erza.channels.websocket.api.transcript import append_transcript_object
 
     append_transcript_object(
         "websocket:doomed", {"event": "user", "chat_id": "doomed", "text": "x"}

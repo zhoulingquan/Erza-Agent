@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from erza.config.schema import AgentDefaults
 from erza.agent.planning_policy import PlanningPolicy
+from erza.config.schema import AgentDefaults
 from erza.providers.base import LLMResponse, ToolCallRequest
 
 _MAX_TOOL_RESULT_CHARS = AgentDefaults().max_tool_result_chars

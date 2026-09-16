@@ -30,8 +30,8 @@ class _LazyModuleAlias(ModuleType):
 
 
 _LEGACY_MODULE_ALIASES = {
-    "webui_thread_disk": "erza.webui.thread_disk",
-    "webui_transcript": "erza.webui.transcript",
+    "webui_thread_disk": "erza.channels.websocket.api.thread_disk",
+    "webui_transcript": "erza.channels.websocket.api.transcript",
     "webui_turn_helpers": "erza.session.webui_turns",
 }
 

@@ -6,7 +6,7 @@ import asyncio
 
 from websockets.http11 import Response
 
-from erza.webui.screenshot_api import capture_screen_png, screenshot_response
+from erza.channels.websocket.api.screenshot_api import capture_screen_png, screenshot_response
 
 from .._http_router import RouteContext, router
 from ._common import forbidden, service_unavailable

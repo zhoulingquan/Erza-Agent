@@ -13,7 +13,7 @@ from ._common import require_auth, service_unavailable
 @require_auth
 def list(ctx: RouteContext) -> Response:
     """List all cron jobs (including system jobs and disabled ones)."""
-    from erza.webui.cron_api import list_cron_jobs
+    from erza.channels.websocket.api.cron_api import list_cron_jobs
 
     if ctx.deps.cron_service is None:
         return service_unavailable("cron service is not available")
@@ -28,7 +28,7 @@ def list(ctx: RouteContext) -> Response:
 @require_auth
 def create(ctx: RouteContext) -> Response:
     """Create a new user cron job."""
-    from erza.webui.cron_api import WebUICronError, create_cron_job
+    from erza.channels.websocket.api.cron_api import WebUICronError, create_cron_job
 
     if ctx.deps.cron_service is None:
         return service_unavailable("cron service is not available")
@@ -46,7 +46,7 @@ def create(ctx: RouteContext) -> Response:
 @require_auth
 def delete(ctx: RouteContext) -> Response:
     """Delete a cron job by id (system jobs are protected)."""
-    from erza.webui.cron_api import WebUICronError, delete_cron_job
+    from erza.channels.websocket.api.cron_api import WebUICronError, delete_cron_job
 
     if ctx.deps.cron_service is None:
         return service_unavailable("cron service is not available")
@@ -64,7 +64,7 @@ def delete(ctx: RouteContext) -> Response:
 @require_auth
 def toggle(ctx: RouteContext) -> Response:
     """Enable or disable a cron job by id."""
-    from erza.webui.cron_api import WebUICronError, toggle_cron_job
+    from erza.channels.websocket.api.cron_api import WebUICronError, toggle_cron_job
 
     if ctx.deps.cron_service is None:
         return service_unavailable("cron service is not available")

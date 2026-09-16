@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
       exclude: ["@radix-ui/react-dialog"],
     },
     build: {
-      outDir: path.resolve(__dirname, "../erza/web/dist"),
+      outDir: path.resolve(__dirname, "../erza/channels/websocket/static/dist"),
       emptyOutDir: true,
       sourcemap: false,
       rollupOptions: {

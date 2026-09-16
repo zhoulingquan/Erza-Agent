@@ -8,7 +8,7 @@
 结果是协程对象被直接丢弃——那条 runtime-control 消息永远不会投递到 bus，
 MCP 连接不会重连，只在日志里留下 "coroutine was never awaited" 警告。
 同时 ``RouteDeps.reload_mcp`` 声明为 ``Callable[[], None]``，而真实消费者
-``erza/webui/mcp_presets_api._background_reload`` 却按 ``Awaitable[dict]``
+``erza/channels/websocket/api/mcp_presets_api._background_reload`` 却按 ``Awaitable[dict]``
 使用，契约双向不一致。
 """
 

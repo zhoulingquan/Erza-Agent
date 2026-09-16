@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from websockets.http11 import Response
 
-from erza.webui.mcp_presets_api import mcp_presets_settings_action
-from erza.webui.settings_api import (
+from erza.channels.websocket.api.mcp_presets_api import mcp_presets_settings_action
+from erza.channels.websocket.api.settings_api import (
     WebUISettingsError,
     create_model_configuration,
     delete_all_providers,

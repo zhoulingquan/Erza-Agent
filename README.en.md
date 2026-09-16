@@ -181,14 +181,13 @@ print(result.content, result.tools_used)
 
 ## Code map
 
-~**71k lines** of Python (70.8k), ~**40k lines** of TypeScript in the WebUI, **276 test files / 88k lines** of tests:
+~**71k lines** of Python (71.0k), ~**40k lines** of TypeScript in the WebUI, **276 test files / 88k lines** of tests:
 
 | Package | Lines | Responsibility |
 |----|------|------|
-| `erza/agent/` | 12,978 | Execution kernel: state machine, ReAct, planning, acceptance, context governance, concurrency isolation |
-| `erza/channels/` | 12,862 | IM channel adapters and media handling |
-| `erza/tools/` | 9,024 | Built-in tools, registry, MCP runtime, sandbox |
-| `erza/webui/` | 6,638 | Console gateway API (frontend at repo-root `webui/`) |
+| `erza/agent/` | 12,726 | Execution kernel: state machine, ReAct, planning, acceptance, context governance, concurrency isolation |
+| `erza/channels/` | 19,518 | IM channel adapters, WebSocket gateway (HTTP API + static assets) and media handling |
+| `erza/tools/` | 9,027 | Built-in tools, registry, MCP runtime, sandbox |
 | `erza/memory/` | 6,382 | SQLite memory repository, lifecycle governance, Dream distillation |
 | `erza/providers/` | 5,147 | Multi-provider abstraction and fallback chain |
 | `erza/cli/` | 3,712 | Typer commands, terminal rendering, gateway runner |
@@ -202,6 +201,7 @@ print(result.content, result.tools_used)
 | `erza/composition/` | 625 | Composition roots (gateway / agent_app) |
 | `erza/api_compat/` | 557 | OpenAI-compatible API |
 | `erza/ledger/` | 447 | Call ledger and turn budget |
+| `erza/contracts/` | 423 | Shared agent/tools contract types (plans/subagents/skill paths); dependency firewall |
 | `erza/bus/` | 141 | Message bus |
 | `erza/erza.py` | SDK facade | `Erza.from_config().run()` |
 

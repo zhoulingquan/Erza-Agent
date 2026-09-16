@@ -22,11 +22,11 @@ import httpx
 import pytest
 
 from erza.channels.websocket import WebSocketChannel
-from erza.session.manager import Session, SessionManager
-from erza.webui.media_api import (
+from erza.channels.websocket.api.media_api import (
     b64url_decode,
     b64url_encode,
 )
+from erza.session.manager import Session, SessionManager
 
 # PNG magic bytes + a couple of sentinel bytes so we can verify byte-for-byte
 # round-trip of the served payload. Stays under mimetype + size limits.

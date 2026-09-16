@@ -1,7 +1,8 @@
 """统一的频道扫码登录处理器（参考 QwenPaw QrcodeAuthHandler）。
 
-每个支持 WebUI 扫码登录的频道实现一个具体的 ``QRCodeAuthHandler`` 并在
-``QRCODE_AUTH_HANDLERS`` 注册。路由层（``channels_api.begin_channel_qr_login``
+各 IM 频道（飞书/微信/企微/钉钉/QQ）的 WebUI 扫码登录流程在此统一实现：
+每个频道提供一个具体的 ``QRCodeAuthHandler`` 并在 ``QRCODE_AUTH_HANDLERS``
+注册。路由层（websocket 频道的 ``api/channels_api.begin_channel_qr_login``
 与 ``poll_channel_qr_status``）通过 channel name 路由到对应 handler。
 
 典型流程
@@ -37,9 +38,8 @@ from urllib.parse import quote, urlencode
 import segno
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from erza.channels.websocket.api._query import _query_first
 from erza.security.network import create_ssrf_safe_client, validate_url_target
-
-from ._query import _query_first
 
 # 项目标识，传给第三方扫码授权端点作为 source 参数（参考 QwenPaw PROJECT_NAME）。
 PROJECT_NAME = "Erza"

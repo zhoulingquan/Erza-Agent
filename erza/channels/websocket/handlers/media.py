@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from websockets.http11 import Response
 
-from erza.webui.media_api import serve_signed_media
+from erza.channels.websocket.api.media_api import serve_signed_media
 
 from .._http_router import RouteContext, router
 

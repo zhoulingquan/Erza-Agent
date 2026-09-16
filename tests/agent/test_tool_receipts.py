@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from erza.agent.runner import AgentRunner, AgentRunSpec
 from erza.agent.planning_policy import PlanningPolicy
+from erza.agent.runner import AgentRunner, AgentRunSpec
 from erza.providers.base import LLMProvider, LLMResponse, ToolCallRequest
 from erza.tools.apply_patch import ApplyPatchTool
 from erza.tools.base import Tool

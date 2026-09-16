@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from erza.webui.transcript import (
+from erza.channels.websocket.api.transcript import (
     WEBUI_TRANSCRIPT_SCHEMA_VERSION,
     append_transcript_object,
     read_transcript_lines,
@@ -535,7 +535,7 @@ def test_replay_keeps_new_file_edit_after_reasoning_in_order(tmp_path, monkeypat
 
 
 def test_build_response_schema(monkeypatch, tmp_path) -> None:
-    from erza.webui.transcript import build_webui_thread_response
+    from erza.channels.websocket.api.transcript import build_webui_thread_response
 
     monkeypatch.setattr("erza.config.paths.get_data_dir", lambda: tmp_path)
     key = "websocket:t3"

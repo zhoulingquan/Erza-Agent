@@ -27,7 +27,10 @@ dependencies = [
     "typer>=0.20.0,<1.0.0",
     "pydantic>=2.12.0,<3.0.0",
     "pydantic-settings>=2.12.0,<3.0.0",
-    "websockets>=16.0,<17.0",
+    # 下限 15(而非 16):lark-oapi 全系 pin websockets<16,下限 15 保留交集
+    # 15.x 供 feishu extra 解析;无约束安装仍取 16.x。本体仅用 asyncio 新
+    # API(14.0+),15.x 经 CI 全量测试覆盖。
+    "websockets>=15.0,<17.0",
     "httpx>=0.28.0,<1.0.0",
     "ddgs>=9.5.5,<10.0.0",
     "loguru>=0.7.3,<1.0.0",
@@ -54,6 +57,9 @@ dependencies = [
     "tzdata>=2024.1; sys_platform == 'win32'",
     # WebUI 剪刀按钮的系统级截屏(缺失/无头环境自动回退 getDisplayMedia)。
     "mss>=9.0.0",
+    # IM 频道 WebUI 扫码登录的二维码生成(erza/channels/qrcode_auth.py)。
+    # 纯 Python 实现(QwenPaw 同款),无需 Pillow。
+    "segno>=1.6.6",
 ]
 
 [project.optional-dependencies]
@@ -77,8 +83,14 @@ olostep = [
 # 本体仅内置 websocket(WebUI)；按需安装，例如: pip install erza-ai[feishu]
 # 聚合安装全部 IM 适配器: pip install erza-ai[channels-all]
 feishu = [
-    # channels/feishu/channel.py、_feishu_ws.py 运行时 import lark_oapi
-    "lark-oapi>=1.7.0",
+    # channels/feishu/channel.py、_feishu_ws.py 运行时 import lark_oapi。
+    # lark-oapi 全系 pin websockets<16(元数据保守,实测与 16 共存无碍),
+    # 且 1.7.x 不支持 Python 3.14：前者靠主依赖下限降到 15 容纳(无约束时
+    # 仍解析到 16.x),后者用 marker 在 3.14 跳过(频道经 FEISHU_AVAILABLE
+    # 优雅降级,见 channels/feishu/channel.py)。
+    # TODO: lark-oapi 发布支持 3.14 且放宽 websockets pin 的版本后,
+    # 删除下面的 python_version marker,主依赖下限可调回 16,并跑 uv lock。
+    "lark-oapi>=1.7.0; python_version < '3.14'",
     # channels/feishu/_registration.py 扫码登录打印二维码(缺失时回退打印链接)
     "qrcode>=7.0",
 ]
@@ -115,8 +127,9 @@ dev = [
     "pymupdf>=1.25.0",
     "packaging>=26.0",
     # 飞书频道运行时懒加载 lark_oapi(可选依赖), 但 channels 测试直接调用
-    # 真实 SDK 代码路径, dev 环境必须安装。
-    "lark-oapi>=1.7.0",
+    # 真实 SDK 代码路径, dev 环境必须安装(3.14 除外:lark 1.7.x 不支持,
+    # 对应测试文件经模块级 skip 守卫在无 SDK 时跳过)。
+    "lark-oapi>=1.7.0; python_version < '3.14'",
 ]
 
 [project.scripts]
@@ -149,13 +162,13 @@ include = [
     "erza/templates/**/*.md",
     "erza/skills/**/*.md",
     "erza/skills/**/*.sh",
-    "erza/web/dist/**/*",
+    "erza/channels/websocket/static/dist/**/*",
 ]
-# erza/web/dist/ is produced by `cd webui && bun run build` and is
-# git-ignored. List it as an artifact so hatch ships it in both wheel and
-# sdist even though VCS does not track it.
+# erza/channels/websocket/static/dist/ is produced by `cd webui && bun run build`
+# and is git-ignored. List it as an artifact so hatch ships it in both wheel
+# and sdist even though VCS does not track it.
 artifacts = [
-    "erza/web/dist/**/*",
+    "erza/channels/websocket/static/dist/**/*",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -169,7 +182,7 @@ packages = ["erza"]
 [tool.hatch.build.targets.sdist]
 include = [
     "erza/",
-    "erza/web/dist/",
+    "erza/channels/websocket/static/dist/",
     "hatch_build.py",
     "README.md",
     "LICENSE",
@@ -211,6 +224,14 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 timeout = 600
 timeout_method = "thread"
+filterwarnings = [
+    # lark-oapi vendors an old protobuf that calls
+    # datetime.utcfromtimestamp() at import time (DeprecationWarning on
+    # 3.12+, removed in 3.14). Third-party noise: the SDK is intentionally
+    # tested for real (see dev extras), so silence exactly this warning
+    # instead of failing feishu tests for reasons outside our code.
+    "ignore:datetime.datetime.utcfromtimestamp.*:DeprecationWarning",
+]
 
 [tool.coverage.run]
 source = ["erza"]

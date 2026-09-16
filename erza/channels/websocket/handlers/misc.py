@@ -11,13 +11,13 @@ from pathlib import Path
 
 from websockets.http11 import Response
 
-from erza.command.builtin import builtin_command_palette
-from erza.session.webui_turns import websocket_turn_wall_started_at
-from erza.webui.folder_picker import FolderPickerError, pick_workspace_folder
-from erza.webui.sidebar_state import (
+from erza.channels.websocket.api.folder_picker import FolderPickerError, pick_workspace_folder
+from erza.channels.websocket.api.sidebar_state import (
     read_webui_sidebar_state,
     write_webui_sidebar_state,
 )
+from erza.command.builtin import builtin_command_palette
+from erza.session.webui_turns import websocket_turn_wall_started_at
 
 from .._http_router import RouteContext, router
 from .._http_routes import _http_error, _http_json_response, _query_first

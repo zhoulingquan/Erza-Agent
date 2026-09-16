@@ -1,7 +1,7 @@
 import importlib
 
+from erza.channels.websocket.api import thread_disk, transcript
 from erza.session import webui_turns
-from erza.webui import thread_disk, transcript
 
 
 def test_legacy_webui_utils_imports_resolve_to_new_modules() -> None:

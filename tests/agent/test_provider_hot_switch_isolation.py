@@ -12,9 +12,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from erza.agent.planning_policy import PlanningPolicy
 from erza.bus.events import InboundMessage
 from erza.config.schema import ModelPresetConfig
-from erza.agent.planning_policy import PlanningPolicy
 from erza.providers.base import LLMResponse
 from erza.providers.factory import ProviderSnapshot
 from tests.agent.conftest import make_loop

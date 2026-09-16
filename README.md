@@ -177,14 +177,13 @@ print(result.content, result.tools_used)
 
 ## 代码地图
 
-Python 源码约 **7.1 万行**（70.8k），WebUI TypeScript 约 **4.0 万行**，测试 **276 个文件 / 8.8 万行**：
+Python 源码约 **7.1 万行**（71.0k），WebUI TypeScript 约 **4.0 万行**，测试 **276 个文件 / 8.8 万行**：
 
 | 包                   | 行数     | 职责                                      |
 | ------------------- | ------ | --------------------------------------- |
-| `erza/agent/`       | 12,978 | 执行内核：状态机、ReAct、规划、验收、上下文治理、并发隔离          |
-| `erza/channels/`    | 12,862 | IM 频道适配器与媒体处理                           |
-| `erza/tools/`       | 9,024  | 内置工具、注册表、MCP 运行时、沙箱                     |
-| `erza/webui/`       | 6,638  | 控制台网关 API（前端在仓库根 `webui/`）              |
+| `erza/agent/`       | 12,726 | 执行内核：状态机、ReAct、规划、验收、上下文治理、并发隔离          |
+| `erza/channels/`    | 19,518 | IM 频道适配器、WebSocket 网关（HTTP API 与静态资源）与媒体处理 |
+| `erza/tools/`       | 9,027  | 内置工具、注册表、MCP 运行时、沙箱                     |
 | `erza/memory/`      | 6,382  | SQLite 记忆仓库、生命周期治理、Dream 蒸馏             |
 | `erza/providers/`   | 5,147  | 多提供商抽象与 Fallback 链                      |
 | `erza/cli/`         | 3,712  | Typer 命令、终端渲染、网关运行器                     |
@@ -198,6 +197,7 @@ Python 源码约 **7.1 万行**（70.8k），WebUI TypeScript 约 **4.0 万行**
 | `erza/composition/` | 625    | 组合根（gateway / agent_app）                |
 | `erza/api_compat/`  | 557    | OpenAI 兼容 API                           |
 | `erza/ledger/`      | 447    | 调用账本与轮次预算                               |
+| `erza/contracts/`   | 423    | agent/tools 共享契约类型（计划/子代理/技能路径），双向依赖防火墙 |
 | `erza/bus/`         | 141    | 消息总线                                    |
 | `erza/erza.py`      | SDK 门面 | `Erza.from_config().run()`              |
 

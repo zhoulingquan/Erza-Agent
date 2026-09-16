@@ -2,7 +2,7 @@
 # Erza Dockerfile — multi-stage build (设计 §4.6)
 #
 # Stage 1 (webui-builder): uses Bun + frozen bun.lock to build the Vite frontend
-#   into erza/web/dist. Node/Bun live ONLY in this stage.
+#   into erza/channels/websocket/static/dist. Node/Bun live ONLY in this stage.
 # Stage 2 (runtime): Python-only image. Copies the prebuilt webui dist from
 #   stage 1 and runs `uv pip install` with ERZA_SKIP_WEBUI_BUILD=1 so
 #   hatch_build.py never tries to invoke bun/npm. The runtime image contains
@@ -17,14 +17,15 @@ WORKDIR /build
 
 # Copy the whole webui source tree. .dockerignore excludes node_modules/ and
 # any prebuilt dist/, so the layer stays small and the build is reproducible.
-# We also create an empty erza/web/ directory so vite.config.ts's
-# outDir (``../erza/web/dist``) has a parent to write into.
+# We also create an empty static/ directory so vite.config.ts's
+# outDir (``../erza/channels/websocket/static/dist``) has a parent to write into.
 COPY webui/ ./webui/
-RUN mkdir -p erza/web
+RUN mkdir -p erza/channels/websocket/static
 
 # Install with frozen lockfile (reproducible) and build. vite.config.ts writes
-# its outDir to ``../erza/web/dist`` (relative to webui/), which lands
-# at /build/erza/web/dist — exactly the layout the runtime stage needs.
+# its outDir to ``../erza/channels/websocket/static/dist`` (relative to webui/),
+# which lands at /build/erza/channels/websocket/static/dist — exactly the
+# layout the runtime stage needs.
 RUN cd webui && \
     bun install --frozen-lockfile && \
     bun run build
@@ -52,9 +53,10 @@ RUN mkdir -p erza && touch erza/__init__.py && \
     rm -rf erza
 
 # Copy the prebuilt webui dist produced by stage 1. This MUST happen before the
-# full source install below so hatch_build.py sees erza/web/dist/index.html
-# and treats the webui as already built.
-COPY --from=webui-builder /build/erza/web/dist ./erza/web/dist
+# full source install below so hatch_build.py sees
+# erza/channels/websocket/static/dist/index.html and treats the webui as
+# already built.
+COPY --from=webui-builder /build/erza/channels/websocket/static/dist ./erza/channels/websocket/static/dist
 
 # Copy the full Python source and install. ERZA_SKIP_WEBUI_BUILD=1
 # guarantees hatch_build.py will not try to invoke bun/npm (which are absent

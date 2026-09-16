@@ -1,9 +1,15 @@
 """Tests for Feishu reaction add/remove and auto-cleanup on stream end."""
 
+import importlib.util
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+if importlib.util.find_spec("lark_oapi") is None:
+    pytest.skip(
+        "Feishu dependencies not installed (lark-oapi)", allow_module_level=True
+    )
 
 from erza.bus.queue import MessageBus
 from erza.channels.feishu import FeishuChannel, FeishuConfig, _FeishuStreamBuf

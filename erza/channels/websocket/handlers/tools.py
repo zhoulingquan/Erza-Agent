@@ -16,7 +16,7 @@ from ._common import require_auth
 @require_auth
 def list(ctx: RouteContext) -> Response:
     """List all registered tools + user tool files on disk."""
-    from erza.webui.tools_api import list_tools
+    from erza.channels.websocket.api.tools_api import list_tools
 
     try:
         payload = list_tools(ctx.deps.tool_registry, ctx.deps.workspace_path)
@@ -29,8 +29,8 @@ def list(ctx: RouteContext) -> Response:
 @require_auth
 def import_tool(ctx: RouteContext) -> Response:
     """Import a .py tool file into <workspace>/tools/."""
-    from erza.webui.tools_api import WebUIToolsError
-    from erza.webui.tools_api import import_tool as _import_tool
+    from erza.channels.websocket.api.tools_api import WebUIToolsError
+    from erza.channels.websocket.api.tools_api import import_tool as _import_tool
 
     filename = _query_first(ctx.query, "filename")
     filename = unquote(filename) if filename else None
@@ -59,7 +59,7 @@ def import_tool(ctx: RouteContext) -> Response:
 @require_auth
 def delete(ctx: RouteContext) -> Response:
     """Delete a user tool .py file by name."""
-    from erza.webui.tools_api import WebUIToolsError, delete_tool
+    from erza.channels.websocket.api.tools_api import WebUIToolsError, delete_tool
 
     try:
         payload = delete_tool(ctx.deps.workspace_path, ctx.query)

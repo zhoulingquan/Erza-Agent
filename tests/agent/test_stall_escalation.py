@@ -18,7 +18,6 @@ from erza.agent.planning_policy import PlanningPolicy
 from erza.agent.runner import AgentRunner, AgentRunSpec
 from erza.providers.base import LLMResponse, ToolCallRequest
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -94,7 +93,9 @@ def _spec(
     for the stall detector)."""
     goal_active_predicate: Any = None
     if keep_looping:
-        goal_active_predicate = lambda: True
+
+        def goal_active_predicate() -> bool:
+            return True
     return AgentRunSpec(
         initial_messages=messages,
         tools=_make_tools(),

@@ -4,9 +4,7 @@ import json
 
 import pytest
 
-from erza.config.loader import load_config, save_config
-from erza.config.schema import Config, ModelPresetConfig
-from erza.webui.settings_api import (
+from erza.channels.websocket.api.settings_api import (
     WebUISettingsError,
     create_model_configuration,
     settings_payload,
@@ -14,6 +12,8 @@ from erza.webui.settings_api import (
     update_model_configuration,
     update_network_safety_settings,
 )
+from erza.config.loader import load_config, save_config
+from erza.config.schema import Config, ModelPresetConfig
 
 
 def test_create_model_configuration_writes_label_and_selects(
@@ -152,7 +152,7 @@ def test_settings_payload_includes_network_safety_fields(
     config.tools.ssrf_whitelist = ["100.64.0.0/10"]
     save_config(config, config_path)
     monkeypatch.setattr("erza.config.loader._current_config_path", config_path)
-    monkeypatch.setattr("erza.webui.workspaces.get_webui_dir", lambda: tmp_path / "webui")
+    monkeypatch.setattr("erza.channels.websocket.api.workspaces.get_webui_dir", lambda: tmp_path / "webui")
 
     payload = settings_payload()
 
@@ -170,7 +170,7 @@ def test_update_network_safety_settings_writes_local_service_flag(
     config_path = tmp_path / "config.json"
     save_config(Config(), config_path)
     monkeypatch.setattr("erza.config.loader._current_config_path", config_path)
-    monkeypatch.setattr("erza.webui.workspaces.get_webui_dir", lambda: tmp_path / "webui")
+    monkeypatch.setattr("erza.channels.websocket.api.workspaces.get_webui_dir", lambda: tmp_path / "webui")
 
     payload = update_network_safety_settings(
         {
@@ -196,7 +196,7 @@ def test_update_network_safety_settings_accepts_legacy_restricted_default_access
     config_path = tmp_path / "config.json"
     save_config(Config(), config_path)
     monkeypatch.setattr("erza.config.loader._current_config_path", config_path)
-    monkeypatch.setattr("erza.webui.workspaces.get_webui_dir", lambda: tmp_path / "webui")
+    monkeypatch.setattr("erza.channels.websocket.api.workspaces.get_webui_dir", lambda: tmp_path / "webui")
 
     payload = update_network_safety_settings({"webui_default_access_mode": ["restricted"]})
 
@@ -211,7 +211,7 @@ def test_update_network_safety_settings_default_access_is_webui_only(
     save_config(Config(), config_path)
     before = config_path.read_text(encoding="utf-8")
     monkeypatch.setattr("erza.config.loader._current_config_path", config_path)
-    monkeypatch.setattr("erza.webui.workspaces.get_webui_dir", lambda: tmp_path / "webui")
+    monkeypatch.setattr("erza.channels.websocket.api.workspaces.get_webui_dir", lambda: tmp_path / "webui")
 
     payload = update_network_safety_settings({"webui_default_access_mode": ["full"]})
 

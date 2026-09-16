@@ -4,8 +4,7 @@ import asyncio
 
 import pytest
 
-from erza.config.loader import load_config
-from erza.webui.mcp_presets_api import (
+from erza.channels.websocket.api.mcp_presets_api import (
     McpPresetError,
     custom_mcp_action,
     mcp_presets_action,
@@ -13,6 +12,7 @@ from erza.webui.mcp_presets_api import (
     mcp_presets_test_action,
     normalize_mcp_preset_mentions,
 )
+from erza.config.loader import load_config
 
 
 def _use_config(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -170,7 +170,7 @@ def test_test_mcp_preset_reports_missing_dependency(
 ) -> None:
     _use_config(tmp_path, monkeypatch)
     mcp_presets_action("enable", {"name": ["playwright"]})
-    monkeypatch.setattr("erza.webui.mcp_presets_api.shutil.which", lambda _command: None)
+    monkeypatch.setattr("erza.channels.websocket.api.mcp_presets_api.shutil.which", lambda _command: None)
 
     payload = asyncio.run(mcp_presets_test_action({"name": ["playwright"]}))
 
@@ -187,7 +187,7 @@ def test_test_mcp_preset_connects_and_reports_tools(
     # This test exercises the connect path, not the dependency probe; pretend
     # npx is installed so machines without it still reach the connection logic.
     monkeypatch.setattr(
-        "erza.webui.mcp_presets_api.shutil.which",
+        "erza.channels.websocket.api.mcp_presets_api.shutil.which",
         lambda _command: "/fake/bin/npx",
     )
 

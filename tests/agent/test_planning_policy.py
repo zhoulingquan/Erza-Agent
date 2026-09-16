@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from erza.agent.loop import AgentLoop
-from erza.agent.planning_policy import Route, PlanningPolicy
+from erza.agent.planning_policy import PlanningPolicy, Route
 from erza.agent.runner import AgentRunner, AgentRunSpec
 from erza.bus.queue import MessageBus
 from erza.providers.base import LLMProvider, LLMResponse
@@ -396,7 +396,6 @@ def test_agent_loop_builds_default_routing_policy(tmp_path) -> None:
 @pytest.mark.asyncio
 async def test_agent_run_spec_carries_planning_policy(tmp_path) -> None:
     from erza.bus.events import InboundMessage
-
     from erza.config.schema import Config
 
     config = Config.model_validate(

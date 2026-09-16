@@ -12,12 +12,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from erza.config.loader import load_config, save_config
-from erza.security.workspace_access import workspace_sandbox_status
-from erza.webui.workspaces import (
+from erza.channels.websocket.api.workspaces import (
     read_webui_default_access_mode,
     write_webui_default_access_mode,
 )
+from erza.config.loader import load_config, save_config
+from erza.security.workspace_access import workspace_sandbox_status
 
 from ._query import QueryParams, _parse_bool, _query_first_alias
 from ._runtime import WebUISettingsError

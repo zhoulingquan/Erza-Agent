@@ -4,10 +4,10 @@ from unittest.mock import MagicMock
 
 from erza.agent.loop import AgentLoop
 from erza.bus.queue import MessageBus
+from erza.channels.websocket.api.settings_api import update_agent_settings
 from erza.config.loader import save_config
 from erza.config.schema import Config
 from erza.providers.factory import ProviderSnapshot, load_provider_snapshot
-from erza.webui.settings_api import update_agent_settings
 
 
 def _provider(default_model: str, max_tokens: int = 123) -> MagicMock:

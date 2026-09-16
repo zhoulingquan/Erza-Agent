@@ -6,9 +6,9 @@ from pathlib import Path
 
 from loguru import logger
 
+from erza.channels.websocket.api.transcript import delete_webui_transcript
 from erza.config.paths import get_webui_dir
 from erza.session.manager import SessionManager
-from erza.webui.transcript import delete_webui_transcript
 
 
 def webui_thread_file_path(session_key: str) -> Path:

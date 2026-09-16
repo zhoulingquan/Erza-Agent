@@ -13,7 +13,7 @@ from ._common import require_auth
 @require_auth
 def list(ctx: RouteContext) -> Response:
     """List all available channels and their current configuration."""
-    from erza.webui.channels_api import list_channels
+    from erza.channels.websocket.api.channels_api import list_channels
 
     try:
         payload = list_channels()
@@ -26,7 +26,7 @@ def list(ctx: RouteContext) -> Response:
 @require_auth
 def update(ctx: RouteContext) -> Response:
     """Create or update a single channel's configuration."""
-    from erza.webui.channels_api import WebUIChannelsError, update_channel_config
+    from erza.channels.websocket.api.channels_api import WebUIChannelsError, update_channel_config
 
     query = ctx.query
     try:
@@ -42,7 +42,7 @@ def update(ctx: RouteContext) -> Response:
 @require_auth
 def delete(ctx: RouteContext) -> Response:
     """Remove a channel's configuration."""
-    from erza.webui.channels_api import WebUIChannelsError, delete_channel_config
+    from erza.channels.websocket.api.channels_api import WebUIChannelsError, delete_channel_config
 
     query = ctx.query
     try:
@@ -58,7 +58,7 @@ def delete(ctx: RouteContext) -> Response:
 @require_auth
 def qrcode_begin(ctx: RouteContext) -> Response:
     """Begin a QR code login flow for a channel (currently feishu only)."""
-    from erza.webui.channels_api import (
+    from erza.channels.websocket.api.channels_api import (
         WebUIChannelsError,
         begin_channel_qr_login,
     )
@@ -77,7 +77,7 @@ def qrcode_begin(ctx: RouteContext) -> Response:
 @require_auth
 def qrcode_status(ctx: RouteContext) -> Response:
     """Poll the status of a QR code login flow."""
-    from erza.webui.channels_api import (
+    from erza.channels.websocket.api.channels_api import (
         WebUIChannelsError,
         poll_channel_qr_status,
     )

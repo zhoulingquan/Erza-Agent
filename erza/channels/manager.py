@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 def _default_webui_dist() -> Path | None:
     """Return the absolute path to the bundled webui dist directory if it exists."""
     try:
-        import erza.web as web_pkg  # type: ignore[import-not-found]
+        import erza.channels.websocket.static as web_pkg  # type: ignore[import-not-found]
     except ImportError:
         return None
     candidate = Path(web_pkg.__file__).resolve().parent / "dist"

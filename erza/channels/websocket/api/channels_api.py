@@ -272,12 +272,12 @@ def list_channels() -> dict[str, Any]:
 
     ``qr_login_supported`` 标记该频道是否支持 WebUI 扫码登录（参考
     QwenPaw QrcodeAuthBlock）。判定方式：在
-    ``erza.webui.qrcode_auth_handler.QRCODE_AUTH_HANDLERS`` 注册表
+    ``erza.channels.qrcode_auth.QRCODE_AUTH_HANDLERS`` 注册表
     中存在对应 handler 的频道即支持。所有 handler 都是无状态纯函数，
     不依赖 channel 实例。
     """
+    from erza.channels.qrcode_auth import QRCODE_AUTH_HANDLERS
     from erza.channels.registry import discover_all
-    from erza.webui.qrcode_auth_handler import QRCODE_AUTH_HANDLERS
 
     try:
         available = discover_all()
@@ -596,7 +596,7 @@ def begin_channel_qr_login(query: QueryParams) -> dict[str, Any]:
     if not name:
         raise WebUIChannelsError("name is required")
 
-    from erza.webui.qrcode_auth_handler import (
+    from erza.channels.qrcode_auth import (
         generate_qrcode_image,
         get_qr_handler,
     )
@@ -650,7 +650,7 @@ def poll_channel_qr_status(query: QueryParams) -> dict[str, Any]:
     if not name:
         raise WebUIChannelsError("name is required")
 
-    from erza.webui.qrcode_auth_handler import get_qr_handler
+    from erza.channels.qrcode_auth import get_qr_handler
 
     handler = get_qr_handler(name)
     if handler is None:
