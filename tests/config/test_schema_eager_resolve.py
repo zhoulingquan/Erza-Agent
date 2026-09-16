@@ -1,10 +1,14 @@
 """Guards for config.schema's eager tool-config resolution.
 
-The eager resolution at the bottom of schema.py used to swallow ALL
-ImportErrors silently; genuinely broken tool config modules only surfaced
-later as unattached config classes (the W6-1a incident). These tests pin
-the contract: circular imports defer to the lazy rebuild with a visible
-warning, while real import breakage raises immediately at the source.
+The tool config classes live in ``erza.config.tool_configs`` (imported at
+the top of schema.py), so the eager resolution at the bottom of schema.py
+no longer crosses into ``erza.tools`` and the historical schema↔tools
+circular import is gone: entering via a tool module first builds Config
+with no deferral warning. These tests pin the contract: the
+``_is_circular_import_error`` / ``_try_eager_resolve_tool_config_refs``
+helpers stay as defense-in-depth (circular imports still defer with a
+visible warning, real breakage still raises immediately), and the
+tool-first import order builds a complete Config eagerly.
 """
 
 from __future__ import annotations
@@ -61,9 +65,13 @@ def test_circular_import_defers_without_raising(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_tool_first_import_order_still_builds_config() -> None:
-    """Regress the W6-1a incident shape: entering via a tool module defers the
-    eager resolution (warning on stderr) and Config still builds via the lazy
-    rebuild."""
+    """Regress the W6-1a incident shape: entering via a tool module first
+    must still build a complete Config.
+
+    Since the tool config classes moved to ``erza.config.tool_configs``,
+    the eager resolution no longer crosses the schema↔tools boundary, so
+    no deferral warning is emitted anymore — Config is complete eagerly.
+    """
     code = (
         "from erza.tools.shell import ExecToolConfig; "
         "from erza.config.schema import Config; "
@@ -79,4 +87,4 @@ def test_tool_first_import_order_still_builds_config() -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert "OK" in proc.stdout
-    assert "deferring to lazy rebuild" in proc.stderr
+    assert "deferring to lazy rebuild" not in proc.stderr

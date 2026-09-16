@@ -10,8 +10,11 @@ from pathlib import Path
 
 import yaml
 
-# Default builtin skills directory (relative to this file)
-BUILTIN_SKILLS_DIR = Path(__file__).parent.parent / "skills"
+# Default builtin skills directory; canonical home is erza.contracts.skills
+# (re-exported here for backward compatibility).
+from erza.contracts.skills import BUILTIN_SKILLS_DIR
+
+__all__ = ["BUILTIN_SKILLS_DIR", "SkillsLoader", "is_valid_skill_name"]
 
 # Opening ---, YAML body (group 1), closing --- on its own line; supports CRLF.
 _STRIP_SKILL_FRONTMATTER = re.compile(

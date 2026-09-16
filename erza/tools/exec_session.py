@@ -9,7 +9,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
 
-from erza.config.schema import Base
+# Canonical home: erza.config.tool_configs. Re-exported here so
+# ``from erza.tools.exec_session import ExecSessionToolConfig`` keeps working.
 from erza.security.risk import RiskLevel
 from erza.tools.base import Tool, tool_parameters
 from erza.tools.context import current_request_session_key
@@ -26,18 +27,6 @@ DEFAULT_WAIT_FOR_MS = 10_000
 MAX_WAIT_FOR_MS = 120_000
 DEFAULT_MAX_OUTPUT_CHARS = 10_000
 MAX_OUTPUT_CHARS = 50_000
-
-
-class ExecSessionToolConfig(Base):
-    """Configuration for the interactive exec-session tools.
-
-    ``enabled`` gates registration of ``write_stdin`` and
-    ``list_exec_sessions``. It defaults to ``True`` so existing setups keep
-    their current tool set; set it to ``false`` to omit both tools from the
-    registry (the main ``exec`` tool is unaffected).
-    """
-
-    enabled: bool = True
 
 
 @dataclass(slots=True)
@@ -413,7 +402,7 @@ class WriteStdinTool(Tool):
 
     @classmethod
     def config_cls(cls):
-        from erza.tools.shell import ExecToolConfig
+        from erza.config.tool_configs import ExecToolConfig
 
         return ExecToolConfig
 
@@ -559,7 +548,7 @@ class ListExecSessionsTool(Tool):
 
     @classmethod
     def config_cls(cls):
-        from erza.tools.shell import ExecToolConfig
+        from erza.config.tool_configs import ExecToolConfig
 
         return ExecToolConfig
 

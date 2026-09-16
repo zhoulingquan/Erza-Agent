@@ -14,13 +14,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from erza.agent.agent_generator import AgentGenerator, extract_name
 from erza.security.risk import RiskLevel
 from erza.tools.base import Tool, tool_parameters
 from erza.tools.schema import ObjectSchema, StringSchema
 
 if TYPE_CHECKING:
-    from erza.agent.subagent_registry import SubagentRegistry
+    from erza.contracts.subagent import SubagentRegistry
     from erza.providers.base import LLMProvider
 
 
@@ -107,6 +106,10 @@ class CreateAgentTool(Tool):
             return "Error: LLM provider not available"
         if self._workspace is None:
             return "Error: workspace not configured"
+
+        # Late import: agent_generator pulls in the ledger/LLM stack; deferring
+        # it keeps this tool's module-level imports free of erza.agent.
+        from erza.agent.agent_generator import AgentGenerator, extract_name
 
         generator = AgentGenerator(provider=self._provider, model=self._model)
         try:

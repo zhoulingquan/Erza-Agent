@@ -12,9 +12,10 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 from loguru import logger
-from pydantic import Field
 
-from erza.config.schema import Base
+# Canonical home: erza.config.tool_configs. Re-exported here so
+# ``from erza.tools.web import WebToolsConfig`` keeps working.
+from erza.config.tool_configs import WebFetchConfig, WebToolsConfig
 from erza.security.network import create_ssrf_safe_client
 from erza.tools.base import Tool, tool_parameters
 from erza.tools.schema import IntegerSchema, StringSchema, tool_parameters_schema
@@ -142,25 +143,6 @@ class _JinaCircuitBreaker:
         if self._half_open:
             return "half_open"
         return "open"
-
-
-class WebFetchConfig(Base):
-    """Web fetch tool configuration.
-
-    use_jina_reader 字段保留向后兼容,但 Jina Reader 现已自动化:
-    首次调用时懒探测可达性,不可达则自动降级到 readability,无需手动开关。
-    """
-
-    use_jina_reader: bool = True  # 保留字段,Jina 已自动化(懒探测+熔断器)
-
-
-class WebToolsConfig(Base):
-    """Web tools configuration."""
-
-    enable: bool = True
-    proxy: str | None = None
-    user_agent: str | None = None
-    fetch: WebFetchConfig = Field(default_factory=WebFetchConfig)
 
 
 def _validate_url(url: str) -> tuple[bool, str]:

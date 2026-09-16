@@ -19,7 +19,7 @@ from erza.tools.schema import StringSchema, tool_parameters_schema
 
 if TYPE_CHECKING:
     from erza.agent.subagent import SubagentManager
-    from erza.agent.subagent_registry import SubagentRegistry
+    from erza.contracts.subagent import SubagentRegistry
 
 
 @tool_parameters(
@@ -102,7 +102,7 @@ class DelegateTool(Tool, ContextAware):
         #   子代理 depth=1：max=0 禁止（1>0），max=1 允许（1>1=False）
         #   孙代理 depth=2：max=1 禁止（2>1）
         # 即 max=1 表示"允许一层递归"——子代理可以再 delegate 一次。
-        from erza.agent.subagent import get_current_subagent_depth
+        from erza.contracts.subagent import get_current_subagent_depth
 
         current_depth = get_current_subagent_depth()
         max_depth = self._manager.max_subagent_recursion_depth

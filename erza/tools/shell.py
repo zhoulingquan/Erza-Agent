@@ -15,10 +15,12 @@ from pathlib import Path
 from typing import Any, ClassVar, Mapping
 
 from loguru import logger
-from pydantic import Field
 
 from erza.config.paths import get_media_dir
-from erza.config.schema import Base
+
+# Canonical home: erza.config.tool_configs. Re-exported here so
+# ``from erza.tools.shell import ExecToolConfig`` keeps working.
+from erza.config.tool_configs import ExecToolConfig
 from erza.security.risk import RiskLevel
 from erza.security.workspace_access import (
     current_scope_allows_loopback,
@@ -74,26 +76,6 @@ _WORKSPACE_BOUNDARY_NOTE = (
 # 文件名形态。覆盖 `cd ..`、`git -C .. log`、`Set-Location ..`、
 # `pushd ..`、`cd /home/user/..` 等形式(`../`/`..\` 由字面子串检查覆盖)。
 _TRAVERSAL_TOKEN_RE = re.compile(r"(?:^|(?<=[\s\"'=;|&()/\\]))\.\.(?![\w$.-])")
-
-
-class ExecToolConfig(Base):
-    """Shell exec tool configuration."""
-
-    enable: bool = True
-    timeout: int = Field(
-        default=60, ge=0
-    )  # Hard timeout (s); 0 = no limit. Not capped by the per-call max.
-    path_append: str = ""
-    sandbox: str = ""
-    # 沙箱不可用时(如 Windows 平台)拒绝执行命令,而非静默降级为无沙箱
-    # 运行。默认 False 保持向后兼容(仅记录告警);生产环境建议开启。
-    sandbox_required: bool = False
-    # 沙箱是否启用网络隔离(--unshare-net)。默认 False,因为多数命令需要联网;
-    # 仅在确需网络隔离的工作流中显式开启。
-    unshare_net: bool = False
-    allowed_env_keys: list[str] = Field(default_factory=list)
-    allow_patterns: list[str] = Field(default_factory=list)
-    deny_patterns: list[str] = Field(default_factory=list)
 
 
 @dataclass(slots=True)

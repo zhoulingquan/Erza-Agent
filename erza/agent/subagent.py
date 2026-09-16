@@ -1,11 +1,9 @@
 """Subagent manager for background task execution."""
 
 import asyncio
-import contextvars
 import json
 import time
 import uuid
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
@@ -16,6 +14,12 @@ from erza.agent.runner import AgentRunner, AgentRunSpec
 from erza.bus.events import InboundMessage, OutboundMessage, make_session_key
 from erza.bus.queue import MessageBus
 from erza.config.schema import AgentDefaults, ToolsConfig
+from erza.contracts.subagent import (
+    SubagentStatus,
+    bind_subagent_depth,
+    get_current_subagent_depth,
+    reset_subagent_depth,
+)
 from erza.providers.base import LLMProvider
 from erza.security.workspace_access import (
     WorkspaceScope,
@@ -28,39 +32,13 @@ from erza.tools.loader import ToolLoader
 from erza.tools.registry import ToolRegistry
 from erza.utils.prompt_templates import render_template
 
-# 子代理递归深度跟踪：主代理 depth=0，子代理 depth=1，孙代理 depth=2。
-# delegate tool 在运行时读取此 ContextVar 决定是否允许再 delegate。
-# 默认值 0 表示主代理上下文（未进入子代理 run 时）。
-_current_depth: contextvars.ContextVar[int] = contextvars.ContextVar(
-    "_subagent_current_depth", default=0
-)
-
-
-def get_current_subagent_depth() -> int:
-    """返回当前上下文的子代理递归深度。
-
-    主代理运行时返回 0；子代理运行时返回 1；孙代理返回 2，依此类推。
-    delegate tool 用此值与 ``max_subagent_recursion_depth`` 比较来决定是否允许再 delegate。
-    """
-    return _current_depth.get()
-
-
-@dataclass(slots=True)
-class SubagentStatus:
-    """Real-time status of a running subagent."""
-
-    task_id: str
-    label: str
-    task_description: str
-    started_at: float  # time.monotonic()
-    # initializing | awaiting_tools | tool_started | tool_blocked |
-    # tool_completed | tools_completed | final_response | done | error
-    phase: str = "initializing"
-    iteration: int = 0
-    tool_events: list = field(default_factory=list)  # [{name, status, detail}, ...]
-    usage: dict = field(default_factory=dict)  # token usage
-    stop_reason: str | None = None
-    error: str | None = None
+__all__ = [
+    "SubagentStatus",
+    "SubagentManager",
+    "bind_subagent_depth",
+    "get_current_subagent_depth",
+    "reset_subagent_depth",
+]
 
 
 class _SubagentHook(AgentHook):
@@ -428,7 +406,7 @@ class SubagentManager:
                 )
                 # 子代理运行时 depth+1，使 delegate tool 能检测递归深度。
                 # ContextVar.set 返回 token，用于 finally 中 reset。
-                depth_token = _current_depth.set(_current_depth.get() + 1)
+                depth_token = bind_subagent_depth(get_current_subagent_depth() + 1)
                 try:
                     result = await self.runner.run(
                         AgentRunSpec(
@@ -455,7 +433,7 @@ class SubagentManager:
                         )
                     )
                 finally:
-                    _current_depth.reset(depth_token)
+                    reset_subagent_depth(depth_token)
                     if token is not None:
                         reset_workspace_scope(token)
                 status.phase = "done"
@@ -579,7 +557,7 @@ class SubagentManager:
             )
             token = bind_workspace_scope(workspace_scope) if workspace_scope is not None else None
             # 子代理运行时 depth+1，使 delegate tool 能检测递归深度。
-            depth_token = _current_depth.set(_current_depth.get() + 1)
+            depth_token = bind_subagent_depth(get_current_subagent_depth() + 1)
             try:
                 result = await self.runner.run(
                     AgentRunSpec(
@@ -606,7 +584,7 @@ class SubagentManager:
                     )
                 )
             finally:
-                _current_depth.reset(depth_token)
+                reset_subagent_depth(depth_token)
                 if token is not None:
                     reset_workspace_scope(token)
             status.phase = "done"

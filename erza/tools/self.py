@@ -7,21 +7,16 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from erza.config.schema import Base
+# Canonical home: erza.config.tool_configs. Re-exported here so
+# ``from erza.tools.self import MyToolConfig`` keeps working.
+from erza.config.tool_configs import MyToolConfig
 from erza.security.risk import RiskLevel
 from erza.tools.base import Tool
 from erza.tools.context import ContextAware, RequestContext
 from erza.tools.runtime_state import RuntimeState
 
 if TYPE_CHECKING:
-    from erza.agent.subagent import SubagentStatus
-
-
-class MyToolConfig(Base):
-    """Self-inspection tool configuration."""
-
-    enable: bool = True
-    allow_set: bool = False
+    from erza.contracts.subagent import SubagentStatus
 
 
 def _has_real_attr(obj: Any, key: str) -> bool:
@@ -38,7 +33,7 @@ def _has_real_attr(obj: Any, key: str) -> bool:
 
 
 def _is_subagent_status(value: Any) -> bool:
-    from erza.agent.subagent import SubagentStatus
+    from erza.contracts.subagent import SubagentStatus
 
     return isinstance(value, SubagentStatus)
 

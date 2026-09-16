@@ -19,7 +19,7 @@ from typing import Any
 
 from loguru import logger
 
-from erza.agent.planner import Plan, PlanStep, _normalize_evidence_level
+from erza.contracts.plan import Plan, PlanStep, _normalize_evidence_level
 from erza.security.risk import RiskLevel
 from erza.tools.base import Tool, tool_parameters
 from erza.tools.schema import StringSchema, tool_parameters_schema

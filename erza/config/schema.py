@@ -3,26 +3,34 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
 from loguru import logger
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
 from pydantic_settings import BaseSettings
 
+from erza.config.base import Base
+from erza.config.tool_configs import (
+    ExecSessionToolConfig,
+    ExecToolConfig,
+    MyToolConfig,
+    WebFetchConfig,
+    WebToolsConfig,
+)
 from erza.cron.types import CronSchedule
 
-if TYPE_CHECKING:
-    from erza.tools.exec_session import ExecSessionToolConfig
-    from erza.tools.self import MyToolConfig
-    from erza.tools.shell import ExecToolConfig
-    from erza.tools.web import WebToolsConfig
-
-
-class Base(BaseModel):
-    """Base model that accepts both camelCase and snake_case keys."""
-
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+# Re-exported tool config classes (canonical home: erza.config.tool_configs).
+# Listed here so ``from erza.config.schema import ...`` keeps working and
+# linters treat the imports as intentional.
+__all__ = [
+    "Base",
+    "ExecSessionToolConfig",
+    "ExecToolConfig",
+    "MyToolConfig",
+    "WebFetchConfig",
+    "WebToolsConfig",
+]
 
 
 class ChannelsConfig(Base):
@@ -504,22 +512,24 @@ def _lazy_rebuild_meta(metaclass: type) -> type:
 class ToolsConfig(Base, metaclass=_lazy_rebuild_meta(type(Base))):
     """Tools configuration.
 
-    Field types for tool-specific sub-configs are resolved via model_rebuild()
-    at the bottom of this file to avoid circular imports (tool modules import
-    Base from schema.py).
+    Field types for tool-specific sub-configs live in
+    ``erza.config.tool_configs`` and are imported at the top of this
+    module, so ``model_rebuild()`` at the bottom always resolves against
+    fully-loaded classes (the historical schema↔tools circular import is
+    gone; the lazy-rebuild metaclass stays as defense-in-depth).
     """
 
     web: WebToolsConfig = Field(
-        default_factory=lambda: _lazy_default("erza.tools.web", "WebToolsConfig")
+        default_factory=lambda: _lazy_default("erza.config.tool_configs", "WebToolsConfig")
     )
     exec: ExecToolConfig = Field(
-        default_factory=lambda: _lazy_default("erza.tools.shell", "ExecToolConfig")
+        default_factory=lambda: _lazy_default("erza.config.tool_configs", "ExecToolConfig")
     )
     exec_session: ExecSessionToolConfig = Field(
-        default_factory=lambda: _lazy_default("erza.tools.exec_session", "ExecSessionToolConfig")
+        default_factory=lambda: _lazy_default("erza.config.tool_configs", "ExecSessionToolConfig")
     )
     my: MyToolConfig = Field(
-        default_factory=lambda: _lazy_default("erza.tools.self", "MyToolConfig")
+        default_factory=lambda: _lazy_default("erza.config.tool_configs", "MyToolConfig")
     )
     # 默认开启工作区隔离,避免工具越权访问工作区外路径;已有 config.json 中的显式值会覆盖此默认
     restrict_to_workspace: bool = True
@@ -757,27 +767,15 @@ class Config(BaseSettings, metaclass=_lazy_rebuild_meta(type(BaseSettings))):
 
 
 def _resolve_tool_config_refs() -> None:
-    """Resolve forward references in ToolsConfig by importing tool config classes.
+    """Resolve forward references in ToolsConfig.
 
-    Must be called after all modules are loaded (breaks circular imports).
-    Re-exports the classes into this module's namespace so existing imports
-    like ``from erza.config.schema import ExecToolConfig`` continue to work.
+    The tool config classes live in ``erza.config.tool_configs`` and are
+    imported at the top of this module, so this is normally a no-op
+    rebuild; it is kept (with the lazy metaclass below) as defense-in-depth
+    for exotic first-import orders. The classes stay re-exported here so
+    existing imports like ``from erza.config.schema import ExecToolConfig``
+    continue to work.
     """
-    import sys
-
-    from erza.tools.exec_session import ExecSessionToolConfig
-    from erza.tools.self import MyToolConfig
-    from erza.tools.shell import ExecToolConfig
-    from erza.tools.web import WebFetchConfig, WebToolsConfig
-
-    # Re-export into this module's namespace
-    mod = sys.modules[__name__]
-    mod.ExecToolConfig = ExecToolConfig  # type: ignore[attr-defined]
-    mod.ExecSessionToolConfig = ExecSessionToolConfig  # type: ignore[attr-defined]
-    mod.WebToolsConfig = WebToolsConfig  # type: ignore[attr-defined]
-    mod.WebFetchConfig = WebFetchConfig  # type: ignore[attr-defined]
-    mod.MyToolConfig = MyToolConfig  # type: ignore[attr-defined]
-
     ToolsConfig.model_rebuild()
     Config.model_rebuild()
 

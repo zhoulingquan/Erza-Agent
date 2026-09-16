@@ -66,7 +66,7 @@ class _FsTool(Tool):
 
     @classmethod
     def create(cls, ctx: Any) -> Tool:
-        from erza.agent.skills import BUILTIN_SKILLS_DIR
+        from erza.contracts.skills import BUILTIN_SKILLS_DIR
 
         restrict = ctx.config.restrict_to_workspace or ctx.config.exec.sandbox
         sandbox_restricts = bool(ctx.config.exec.sandbox)
