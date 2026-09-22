@@ -21,6 +21,7 @@ from erza.agent._provider_switching import ProviderSwitchingMixin
 from erza.agent.autocompact import AutoCompact
 from erza.agent.context import ContextBuilder
 from erza.agent.dispatch import UNIFIED_SESSION_KEY, MessageDispatcher
+from erza.agent.execution.messages import SUSTAINED_GOAL_CONTINUE_PROMPT
 from erza.agent.hook import AgentHook, CompositeHook
 from erza.agent.planning_policy import PlanningPolicy
 from erza.agent.progress_hook import AgentProgressHook
@@ -49,9 +50,11 @@ from erza.command import (
     register_builtin_commands,
 )
 from erza.config.schema import AgentDefaults, ModelPresetConfig, StructuredMemoryConfig
+from erza.contracts.callbacks import ProgressCallback
 from erza.memory import Consolidator, Dream, MemoryStore
 from erza.providers.base import LLMProvider
 from erza.providers.factory import ProviderSnapshot
+from erza.providers.runtime import LLMRuntime
 from erza.security.workspace_access import (
     WorkspaceScope,
     WorkspaceScopeResolver,
@@ -76,18 +79,11 @@ from erza.tools.context import (
 from erza.tools.file_state import FileStateStore, bind_file_states, reset_file_states
 from erza.tools.mcp_runtime import McpRuntime
 from erza.tools.registry import LazyToolRegistry, ToolRegistry
-from erza.utils.callback_types import ProgressCallback
 from erza.utils.document import extract_documents  # re-export for tests/extensions
-from erza.utils.llm_runtime import LLMRuntime
-from erza.utils.runtime import (
-    SUSTAINED_GOAL_CONTINUE_PROMPT,
-)
 
 if TYPE_CHECKING:
-    from erza.config.schema import (
-        ChannelsConfig,
-        ToolsConfig,
-    )
+    from erza.config.channels import ChannelsConfig
+    from erza.config.schema import ToolsConfig
     from erza.cron.service import CronService
 
 

@@ -16,11 +16,11 @@ from erza.channels.websocket.api.workspaces import (
     read_webui_default_access_mode,
     write_webui_default_access_mode,
 )
-from erza.config.loader import load_config, save_config
 from erza.security.workspace_access import workspace_sandbox_status
 
 from ._query import QueryParams, _parse_bool, _query_first_alias
 from ._runtime import WebUISettingsError
+from ._settings_store import SettingsStore
 
 # === Payload builder ===
 
@@ -57,7 +57,9 @@ def advanced_payload(config: Any) -> dict[str, Any]:
 # === Update handlers ===
 
 
-def update_network_safety_settings(query: QueryParams) -> dict[str, Any]:
+def update_network_safety_settings(
+    query: QueryParams, store: SettingsStore | None = None
+) -> dict[str, Any]:
     raw_allow = _query_first_alias(
         query, "webui_allow_local_service_access", "webuiAllowLocalServiceAccess"
     ) or _query_first_alias(query, "allow_local_preview_access", "allowLocalPreviewAccess")
@@ -69,7 +71,8 @@ def update_network_safety_settings(query: QueryParams) -> dict[str, Any]:
             "webui_allow_local_service_access or webui_default_access_mode is required"
         )
 
-    config = load_config()
+    settings = store or SettingsStore()
+    config = settings.read()
     changed = False
     if raw_allow is not None:
         webui_allow_local_service_access = _parse_bool(
@@ -80,7 +83,7 @@ def update_network_safety_settings(query: QueryParams) -> dict[str, Any]:
             changed = True
 
     if changed:
-        save_config(config)
+        settings.write(config)
     if raw_default_access_mode is not None:
         default_access_mode = raw_default_access_mode.strip().lower()
         if default_access_mode == "restricted":
@@ -93,4 +96,4 @@ def update_network_safety_settings(query: QueryParams) -> dict[str, Any]:
             raise WebUISettingsError(str(exc)) from exc
     from .settings_api import settings_payload
 
-    return settings_payload(requires_restart=changed)
+    return settings_payload(requires_restart=changed, store=settings)

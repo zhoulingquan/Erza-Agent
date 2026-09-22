@@ -39,6 +39,7 @@ def settings(ctx: RouteContext) -> Response:
             settings_payload(
                 surface=ctx.deps.runtime_surface,
                 runtime_capability_overrides=ctx.deps.runtime_capabilities,
+                store=ctx.deps.settings,
             ),
             section=None,
         )
@@ -147,7 +148,7 @@ async def provider_models(ctx: RouteContext) -> Response:
 def web_fetch_update(ctx: RouteContext) -> Response:
     query = ctx.query
     try:
-        payload = update_web_fetch_settings(query)
+        payload = update_web_fetch_settings(query, store=ctx.deps.settings)
     except WebUISettingsError as e:
         return _http_error(e.status, e.message)
     return _http_json_response(ctx.deps.with_restart_state(payload, section="browser"))
@@ -158,7 +159,7 @@ def web_fetch_update(ctx: RouteContext) -> Response:
 def network_safety_update(ctx: RouteContext) -> Response:
     query = ctx.query
     try:
-        payload = update_network_safety_settings(query)
+        payload = update_network_safety_settings(query, store=ctx.deps.settings)
     except WebUISettingsError as e:
         return _http_error(e.status, e.message)
     return _http_json_response(ctx.deps.with_restart_state(payload, section="runtime"))
@@ -182,6 +183,7 @@ async def _mcp_presets_handler(ctx: RouteContext, action: str | None) -> Respons
             action,
             _parse_mcp_settings_query(ctx.request),
             reload_mcp=ctx.deps.reload_mcp,
+            mcp_connector=ctx.deps.mcp_connector,
         )
     except Exception as e:
         status = getattr(e, "status", 500)

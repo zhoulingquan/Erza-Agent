@@ -34,9 +34,9 @@
 |---|---|---|
 | 业务模块 `import erza.composition` | 避免业务代码自举装配、破坏单一组合根 | ✅ 现状无(W8-1 修复架构守护的匹配盲区,裸 `composition` 与全限定 `erza.composition.*` 两种形式同判;此前 agent/loop 与 loop_builder 对 `composition.mcp_runtime` 的最后两处违例随 McpRuntime 归位 tools 消解,守护修复后为真实 ✅) |
 | `session` import `agent` | 会话层不依赖代理执行细节 | ✅ 现状经 bus 解耦 |
-| `channels` import `agent` | 通道层经 bus 解耦,不直接持有 agent | ✅ 现状无(原过渡期豁免 `channels/websocket/channel → agent.tools.mcp` 随 W5 工具库外置 `erza/tools` 后消解,channel.py 不再 import agent) |
+| `channels` import `agent` | 通道层经 bus 解耦,不直接持有 agent | ✅ 现状无(Rule B 豁免于 Phase 7-β 清零:`handlers/agents.py` 改从 `erza.contracts.routes_agents` 导入 router、`handlers/skills.py` 改从 `erza.contracts.skills` 导入 SkillsLoader;`channel.py → agent.tools.mcp` 的历史豁免已随 W5 工具库外置消解) |
 | 模块间读取对方下划线私有属性 | 模块边界 = 公开 API 边界 | ⚠️ 已知例外见 §4 |
-| 业务模块反向 import `cli/*`(除 `cli` 作为入口的调用方向) | 保持入口 → 业务单向 | ⚠️ 组合根内为测试兼容保留的 late-binding 例外,见 §4.1 |
+| 业务模块反向 import `cli/*`(除 `cli` 作为入口的调用方向) | 保持入口 → 业务单向 | ✅ 现状无(2026-09-18 cron 迁移归位:组合根改直引 `erza.cron.migration`,`commands._migrate_cron_store` 豁免消除) |
 | sink 八包(providers/utils/security/config/bus/ledger/memory/tools)import `cli` | 模型目录等基础设施知识归位 providers,入口层不被下层咬住 | ✅ 现状无(W8-2 模型目录自 cli 下沉 providers 消 6 处反向导入;AST 守护 `test_base_layer_does_not_import_cli` 固化,裸 `cli.*` 与全限定 `erza.cli.*` 同判) |
 
 ### 1.2 例外声明(必须逐项登记)
@@ -48,6 +48,9 @@
 - `erza/composition/gateway.py` 从 `erza.cli._gateway_runner` 调用时导入
   `on_cron_job` / `_pick_heartbeat_target` / `_dream_backlog_total`。原因:cron 处理器与
   gateway 装配的历史同居一模块,Phase 1 只移动装配不动处理器;Phase 2 起评估迁移归属。
+- ~~`erza/composition/gateway.py` 经 `erza.cli.commands._migrate_cron_store` 做 cron 迁移~~
+  (2026-09-18 已消除:正典位置 `erza/cron/migration.py:migrate_cron_store`,
+  `erza.cli.commands` 仅 re-export 供旧测试导入,组合根直引新家,Rule C 豁免清零)。
 - `channels/websocket/_http_router.py` 与 `tools/mcp.py` 读写 `agent` 私有状态的历史耦合,
   由 Phase 3(收口私有访问)消化,不属 Phase 1 范围。
 
@@ -94,11 +97,16 @@
 ### 2.3 channels
 
 - 位置:`erza/channels/`
-- 公开 API:`ChannelManager(config, bus, *, session_manager=…, webui_* …)`,
-  `start_all()` / `stop_all()`,`enabled_channels`,各 channel 的 `BaseChannel` 协议。
+- 公开 API:`ChannelManager(config, bus, *, session_manager=…, context: WebUIContext | None = None)`
+  (旧 `webui_*` 关键字参数保留为兼容透传,显式传入时覆盖 context 字段并打
+  `DeprecationWarning`),`start_all()` / `stop_all()`,`enabled_channels`,
+  各 channel 的 `BaseChannel` 协议。
 - 拥有的状态:`channels` 映射、`_dispatch_task`、`_background_tasks`、
   `_origin_reply_fingerprints`。
 - 生命周期所有者:`composition`(gateway 装配时创建,stop 阶段调用 `stop_all`)。
+- 依赖说明(Phase 7-β):WebSocket `handlers/agents.py` 与 `handlers/skills.py`
+  经 `erza.contracts.routes_agents` / `erza.contracts.skills` 复用子代理路由与技能
+  加载逻辑,不再 import `erza.agent`(Rule B 豁免清零,见 §1.1 行)。
 
 ### 2.4 session
 
@@ -164,7 +172,18 @@
   (W6-1a 起 tools 库 14 处调用点全部直连 `security.risk`,不再经 agent re-export)。
 - `config`:`Config` 模式、加载器(`load_config` / `resolve_config_env_vars` /
   `set_config_path`)、路径(`config/paths.py`);状态 = 进程内活动配置上下文。
+  `ChannelsConfig` 独立于 `config/channels.py`(schema.py re-export 保持兼容)。
 - `utils`:`helpers` / `restart` 等纯工具,不拥有业务状态。
+  WebUI 文件编辑进度 helpers 归位 `session/progress.py`(utils/file_edit_events.py
+  仅 re-export 兼容旧导入)。
+- 搬迁记录(phase7-utils):`utils/callback_types.py` → `contracts/callbacks.py`
+  (契约层,零依赖);`utils/llm_runtime.py` → `providers/runtime.py`;
+  `utils/progress_events.py` + `utils/tool_hints.py` → `session/progress/_tool_events.py`
+  (+ `utils/file_edit_events.py` 原有 re-export);`utils/runtime.py` 的
+  agent 独用消息构造器 → `agent/execution/messages.py`,`utils/runtime.py` 保留
+  `EMPTY_FINAL_RESPONSE_MESSAGE`(api_compat 消费)与 workspace 越界节流
+  (tests 直连导入);`utils/document.py` 不动(通用文档解析,`tools/filesystem.py`
+  消费)。原借住 utils 的地址一律留 re-export 兼容旧导入。
 - 生命周期所有者:无独立生命周期;由 `composition` 及入口层按需解析。
 
 ### 2.10 agent/dispatch(MessageDispatcher,PR-2a)
@@ -338,7 +357,7 @@
 5. `AgentLoop.from_config(…, provider_snapshot_loader=load_provider_snapshot, …)`
 6. MessageTool `set_send_callback(_deliver_to_channel)`
 7. `cron.on_job = <wrapper>`
-8. `ChannelManager(…, webui_cron_service=cron, webui_tool_registry=agent.tools, …)`
+8. `ChannelManager(…, context=WebUIContext(runtime_model_name=…, static_dist=…, runtime_surface=…, runtime_capabilities=…, provider_loader=…, cron_reloader=…, agent_model_refresher=…, cron_service=cron, tool_registry=agent.tools))`
 9. Dream / heartbeat 系统任务注册(`cron.register_system_job`)
 10. `start()`:`cron.start()` → `agent.run()` + `channels.start_all()`(+ 可选 browser 打开)
 
@@ -532,8 +551,23 @@
 
 `tests/architecture/test_dependency_direction.py`(纯 `ast`,零第三方依赖):
 - A. 业务模块禁 import `erza.composition`(入口豁免);
-- B. `session` / `channels` 禁 import `agent`(单向依赖);
-- C. 跨顶层包下划线私有访问禁令 + 显式豁免清单(每项须随耦合解除移除)。
+- B. `session` / `channels` 禁 import `agent`(单向依赖;Phase 7 豁免清零);
+- C. 跨顶层包下划线私有访问禁令 + 显式豁免清单(每项须随耦合解除移除;Phase 7 豁免清零);
+- D/E. sink 包禁 import `agent` / 基座包禁 import `cli`(无豁免);
+- F(Phase 7+). `channels` 只许依赖 tools 门面(`erza.tools.registry`)。
+  直引 `erza.tools.mcp` 的 2 处(websocket channel 热重载 + mcp_presets 连接)
+  已消除:组合根(`GatewayApplication`)→ `WebUIContext` →
+  `ChannelManager` → `WebSocketChannel`(`mcp_reloader` / `mcp_connector`
+  构造注入)→ `RouteDeps` → handler 的注入链路取代 channel 模块全局 patch
+  与函数级懒导入,豁免清单 `CHANNELS_TOOLS_EXEMPTIONS` 已清空为门禁。
+
+`tests/architecture/test_module_size_budget.py`:
+- 1200 行上限 + `SIZE_EXEMPTIONS`(Phase 7 后 4 项→2 项:loop/runner;2026-09-20
+  feishu channel 拆为 8 个 mixin,`channel.py` 2172→~470 行,豁免摘帽;同日
+  websocket channel 拆为 7 个 mixin(`_tokens`/`_http`/`_bootstrap`/
+  `_messages`/`_lifecycle`/`_envelope`/`_send`),`channel.py` 1773→~295 行,
+  转为门面 + 组合,保留可打补丁模块全局,豁免摘帽);
+- 800 行新文件红线 + `GRANDFATHERED_800`(15 个既有文件,精确相等断言,瘦身即摘帽)。
 
 遥测收口:`tests/agent/test_turn_end_fields.py` 锁定 `turn_end` 出站消息字段集。
 

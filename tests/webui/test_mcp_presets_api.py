@@ -170,7 +170,9 @@ def test_test_mcp_preset_reports_missing_dependency(
 ) -> None:
     _use_config(tmp_path, monkeypatch)
     mcp_presets_action("enable", {"name": ["playwright"]})
-    monkeypatch.setattr("erza.channels.websocket.api.mcp_presets_api.shutil.which", lambda _command: None)
+    monkeypatch.setattr(
+        "erza.channels.websocket.api.mcp_presets_api.shutil.which", lambda _command: None
+    )
 
     payload = asyncio.run(mcp_presets_test_action({"name": ["playwright"]}))
 
@@ -208,9 +210,9 @@ def test_test_mcp_preset_connects_and_reports_tools(
         registry.register(FakeTool())
         return {"playwright": FakeStack()}
 
-    monkeypatch.setattr("erza.tools.mcp.connect_mcp_servers", fake_connect)
-
-    payload = asyncio.run(mcp_presets_test_action({"name": ["playwright"]}))
+    payload = asyncio.run(
+        mcp_presets_test_action({"name": ["playwright"]}, mcp_connector=fake_connect)
+    )
 
     assert payload["last_action"]["ok"] is True
     assert payload["last_action"]["tool_count"] == 1
@@ -234,9 +236,9 @@ def test_test_mcp_preset_scrubs_connection_errors(
     async def fake_connect(_servers, _registry):
         raise RuntimeError("failed https://example.invalid/mcp?token=bb_live_secret")
 
-    monkeypatch.setattr("erza.tools.mcp.connect_mcp_servers", fake_connect)
-
-    payload = asyncio.run(mcp_presets_test_action({"name": ["custom-remote"]}))
+    payload = asyncio.run(
+        mcp_presets_test_action({"name": ["custom-remote"]}, mcp_connector=fake_connect)
+    )
 
     assert payload["last_action"]["ok"] is False
     assert "bb_live_secret" not in str(payload)

@@ -16,7 +16,7 @@ def list(ctx: RouteContext) -> Response:
     from erza.channels.websocket.api.channels_api import list_channels
 
     try:
-        payload = list_channels()
+        payload = list_channels(store=ctx.deps.settings)
     except Exception as exc:
         return _http_error(500, str(exc))
     return _http_json_response(payload)
@@ -30,7 +30,7 @@ def update(ctx: RouteContext) -> Response:
 
     query = ctx.query
     try:
-        payload = update_channel_config(query)
+        payload = update_channel_config(query, store=ctx.deps.settings)
     except WebUIChannelsError as e:
         return _http_error(e.status, e.message)
     except Exception as exc:
@@ -46,7 +46,7 @@ def delete(ctx: RouteContext) -> Response:
 
     query = ctx.query
     try:
-        payload = delete_channel_config(query)
+        payload = delete_channel_config(query, store=ctx.deps.settings)
     except WebUIChannelsError as e:
         return _http_error(e.status, e.message)
     except Exception as exc:

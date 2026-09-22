@@ -12,7 +12,7 @@ from erza.agent.planning_policy import PlanningPolicy
 from erza.bus.events import InboundMessage
 from erza.bus.queue import MessageBus
 from erza.providers.base import LLMResponse, ToolCallRequest
-from erza.utils.progress_events import (
+from erza.session.progress import (
     invoke_file_edit_progress,
     on_progress_accepts_file_edit_events,
 )

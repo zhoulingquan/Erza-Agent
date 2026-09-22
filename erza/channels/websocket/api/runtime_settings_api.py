@@ -12,10 +12,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from erza.config.loader import get_config_path, load_config, save_config
-
 from ._query import QueryParams, _query_first, _query_first_alias
 from ._runtime import WebUISettingsError
+from ._settings_store import SettingsStore, get_config_path
 
 # === Payload builder ===
 
@@ -61,7 +60,9 @@ def runtime_payload(config: Any) -> dict[str, Any]:
 # === Update handlers ===
 
 
-def update_runtime_settings(query: QueryParams) -> dict[str, Any]:
+def update_runtime_settings(
+    query: QueryParams, store: SettingsStore | None = None
+) -> dict[str, Any]:
     """Update heartbeat interval and/or dream cron from WebUI query params."""
     raw_heartbeat_interval = _query_first_alias(query, "heartbeat_interval_s", "heartbeatIntervalS")
     raw_dream_cron = _query_first(query, "dream_cron")
@@ -87,7 +88,8 @@ def update_runtime_settings(query: QueryParams) -> dict[str, Any]:
     ):
         raise WebUISettingsError("heartbeat_interval_s or dream_cron is required")
 
-    config = load_config()
+    settings = store or SettingsStore()
+    config = settings.read()
     changed = False
 
     if raw_heartbeat_interval is not None:
@@ -154,9 +156,9 @@ def update_runtime_settings(query: QueryParams) -> dict[str, Any]:
             changed = True
 
     if changed:
-        save_config(config)
+        settings.write(config)
     # Heartbeat/dream intervals are re-registered on the running cron service
     # by the WebSocket channel handler, so no gateway restart is required.
     from .settings_api import settings_payload
 
-    return settings_payload(requires_restart=False)
+    return settings_payload(requires_restart=False, store=settings)

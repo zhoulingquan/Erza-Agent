@@ -14,6 +14,7 @@ MCP 连接不会重连，只在日志里留下 "coroutine was never awaited" 警
 
 import asyncio
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -21,7 +22,7 @@ from erza.bus.queue import MessageBus
 from erza.channels.websocket import WebSocketChannel
 
 
-def _ch(bus: MessageBus, tmp_path: Path) -> WebSocketChannel:
+def _ch(bus: MessageBus, tmp_path: Path, *, mcp_reloader: Any = None) -> WebSocketChannel:
     return WebSocketChannel(
         {
             "enabled": True,
@@ -34,6 +35,7 @@ def _ch(bus: MessageBus, tmp_path: Path) -> WebSocketChannel:
         bus,
         session_manager=None,
         static_dist_path=None,
+        mcp_reloader=mcp_reloader,
     )
 
 
@@ -47,13 +49,8 @@ async def test_reload_mcp_safe_really_awaits_request_mcp_reload(
         seen.append(bus)
         return {"ok": True, "message": "reloaded", "requires_restart": False}
 
-    monkeypatch.setattr(
-        "erza.channels.websocket.channel.request_mcp_reload",
-        _fake_reload,
-    )
-
     bus = MessageBus()
-    channel = _ch(bus, tmp_path)
+    channel = _ch(bus, tmp_path, mcp_reloader=_fake_reload)
     result = await channel._reload_mcp_safe()
 
     assert seen == [bus], "request_mcp_reload 没有被真正 await 执行"
@@ -67,9 +64,7 @@ async def test_reload_mcp_safe_degrades_without_raising(
     async def _boom(_bus: MessageBus) -> dict:
         raise RuntimeError("mcp unreachable")
 
-    monkeypatch.setattr("erza.channels.websocket.channel.request_mcp_reload", _boom)
-
-    channel = _ch(MessageBus(), tmp_path)
+    channel = _ch(MessageBus(), tmp_path, mcp_reloader=_boom)
     result = await channel._reload_mcp_safe()
 
     assert result["ok"] is False

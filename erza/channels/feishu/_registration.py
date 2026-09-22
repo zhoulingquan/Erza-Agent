@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import time
 from contextlib import suppress
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from rich.console import Console
 from rich.markup import escape
@@ -221,12 +221,18 @@ def sync_saved_feishu_identity_boundary(
     instance_id: str,
     app_id: str,
     domain: str,
+    feishu_section: dict[str, Any] | None = None,
+    save_feishu_section: Callable[[dict[str, Any]], None],
 ) -> bool:
     """Persist the Feishu app identity marker and clear access if it changed.
 
     WebUI connect normally handles this at save time. This startup check catches
     manual config edits so approved users do not accidentally carry over to a
     different Feishu/Lark app in the same local instance slot.
+
+    ``feishu_section`` is the caller-resolved ``channels.feishu`` dict;
+    ``save_feishu_section`` persists the updated section back to the config
+    (setattr + disk save) exactly as the legacy full-config path did.
     """
     current_identity_key = _feishu_app_identity_key(app_id, domain)
     if not current_identity_key:
@@ -234,12 +240,8 @@ def sync_saved_feishu_identity_boundary(
 
     # Lazy import to avoid circular dependency with channel.py.
     from erza.channels.feishu.channel import FeishuChannel
-    from erza.config.loader import load_config, save_config
 
-    full_config = load_config()
-    feishu_cfg = getattr(full_config.channels, "feishu", None) or {}
-    if not isinstance(feishu_cfg, dict):
-        feishu_cfg = {}
+    feishu_cfg = feishu_section if isinstance(feishu_section, dict) else {}
 
     defaults = FeishuChannel.default_config()
     previous_identity_key = ""
@@ -263,8 +265,7 @@ def sync_saved_feishu_identity_boundary(
             instance_id,
             values,
         )
-        setattr(full_config.channels, "feishu", feishu_cfg)
-        save_config(full_config)
+        save_feishu_section(feishu_cfg)
 
     return access_cleared
 
@@ -274,19 +275,22 @@ def save_registration_result(
     *,
     instance_id: str = DEFAULT_INSTANCE_ID,
     name: str | None = None,
+    feishu_section: dict[str, Any] | None = None,
+    save_feishu_section: Callable[[dict[str, Any]], None],
 ) -> None:
-    """Persist a successful Feishu/Lark registration result to config.json."""
+    """Persist a successful Feishu/Lark registration result to config.json.
+
+    ``feishu_section`` is the caller-resolved ``channels.feishu`` dict;
+    ``save_feishu_section`` persists the updated section back to the config
+    (setattr + disk save) exactly as the legacy full-config path did.
+    """
     # Lazy import to avoid circular dependency with channel.py.
     from erza.channels.feishu.channel import (
         FeishuChannel,
         fetch_feishu_app_identity,
     )
-    from erza.config.loader import load_config, save_config
 
-    full_config = load_config()
-    feishu_cfg = getattr(full_config.channels, "feishu", None) or {}
-    if not isinstance(feishu_cfg, dict):
-        feishu_cfg = {}
+    feishu_cfg = feishu_section if isinstance(feishu_section, dict) else {}
     defaults = FeishuChannel.default_config()
     app_id = str(result["app_id"]).strip()
     domain = str(result.get("domain", "feishu") or "feishu").strip().lower()
@@ -302,8 +306,7 @@ def save_registration_result(
             domain,
         )
     values = {
-        "name": name
-        or ("erza" if instance_id == DEFAULT_INSTANCE_ID else f"erza {instance_id}"),
+        "name": name or ("erza" if instance_id == DEFAULT_INSTANCE_ID else f"erza {instance_id}"),
         "appId": app_id,
         "appSecret": result["app_secret"],
         "domain": domain,
@@ -320,17 +323,24 @@ def save_registration_result(
         instance_id,
         values,
     )
-    setattr(full_config.channels, "feishu", feishu_cfg)
-    save_config(full_config)
+    save_feishu_section(feishu_cfg)
 
 
-def refresh_saved_feishu_identities(config: Any | None = None) -> bool:
+def refresh_saved_feishu_identities(
+    feishu_section: dict[str, Any] | None = None,
+    *,
+    save_feishu_section: Callable[[dict[str, Any]], None],
+) -> bool:
     """Backfill missing Feishu assistant display identity in saved config.
 
     Existing users may already have working App ID/Secret credentials from
     older builds. Fetch identity only when an instance has credentials but no
     identity metadata at all, then persist the attempt so Settings does not hit
     Feishu on every render.
+
+    ``feishu_section`` is the caller-resolved ``channels.feishu`` dict;
+    ``save_feishu_section`` persists the updated section back to the config
+    (setattr + disk save) exactly as the legacy full-config path did.
     """
     # Lazy import to avoid circular dependency with channel.py.
     from erza.channels.feishu.channel import (
@@ -343,10 +353,7 @@ def refresh_saved_feishu_identities(config: Any | None = None) -> bool:
     if not FEISHU_AVAILABLE:
         return False
 
-    from erza.config.loader import load_config, save_config
-
-    full_config = config or load_config()
-    feishu_cfg = getattr(full_config.channels, "feishu", None)
+    feishu_cfg = feishu_section if isinstance(feishu_section, dict) else {}
     defaults = FeishuChannel.default_config()
     specs = feishu_instance_specs(feishu_cfg, defaults)
     updated = False
@@ -384,8 +391,7 @@ def refresh_saved_feishu_identities(config: Any | None = None) -> bool:
     if not updated:
         return False
 
-    setattr(full_config.channels, "feishu", feishu_cfg)
-    save_config(full_config)
+    save_feishu_section(feishu_cfg)
     return True
 
 

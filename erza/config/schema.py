@@ -11,6 +11,7 @@ from pydantic.alias_generators import to_camel
 from pydantic_settings import BaseSettings
 
 from erza.config.base import Base
+from erza.config.channels import ChannelsConfig
 from erza.config.tool_configs import (
     ExecSessionToolConfig,
     ExecToolConfig,
@@ -20,60 +21,18 @@ from erza.config.tool_configs import (
 )
 from erza.cron.types import CronSchedule
 
-# Re-exported tool config classes (canonical home: erza.config.tool_configs).
-# Listed here so ``from erza.config.schema import ...`` keeps working and
-# linters treat the imports as intentional.
+# Re-exported config classes (canonical homes: erza.config.tool_configs,
+# erza.config.channels). Listed here so ``from erza.config.schema import ...``
+# keeps working and linters treat the imports as intentional.
 __all__ = [
     "Base",
+    "ChannelsConfig",
     "ExecSessionToolConfig",
     "ExecToolConfig",
     "MyToolConfig",
     "WebFetchConfig",
     "WebToolsConfig",
 ]
-
-
-class ChannelsConfig(Base):
-    """Configuration for chat channels.
-
-    QwenPaw-style: built-in channel configs are declared as explicit fields
-    (each channel lives in ``erza/channels/<name>/`` and parses its
-    own config dict in ``__init__``). Plugin channel configs are still
-    stored via ``extra="allow"`` (``__pydantic_extra__`` dict).
-    Per-channel ``"streaming": true`` enables streaming output (requires
-    send_delta impl).
-    """
-
-    model_config = ConfigDict(extra="allow")
-
-    send_progress: bool = True  # stream agent's text progress to the channel
-    send_tool_hints: bool = False  # stream tool-call hints (e.g. read_file("…"))
-    show_reasoning: bool = True  # surface model reasoning when channel implements it
-    extract_document_text: bool = (
-        True  # extract text from document attachments before sending to the model
-    )
-    send_max_retries: int = Field(
-        default=3, ge=0, le=10
-    )  # Max delivery attempts (initial send included)
-    send_timeout_s: float = Field(
-        default=30.0, ge=0
-    )  # Per-attempt delivery timeout; 0 disables. Guards the shared outbound
-    # dispatcher against a stalled channel (e.g. a websocket client that stops
-    # reading) freezing delivery for every other channel.
-    transcription_provider: str = "groq"  # Voice transcription backend: "groq" or "openai"
-    transcription_language: str | None = Field(
-        default=None, pattern=r"^[a-z]{2,3}$"
-    )  # Optional ISO-639-1 hint for audio transcription
-
-    # Built-in channel configs (QwenPaw-style explicit fields). None = not
-    # configured / disabled; dict = parsed by the channel's own Config class
-    # in __init__. Plugin channels still use the extras dict.
-    feishu: dict[str, Any] | None = None
-    dingtalk: dict[str, Any] | None = None
-    qq: dict[str, Any] | None = None
-    wecom: dict[str, Any] | None = None
-    weixin: dict[str, Any] | None = None
-    websocket: dict[str, Any] | None = None
 
 
 class DreamConfig(Base):
@@ -281,7 +240,7 @@ class AgentDefaults(Base):
         serialization_alias="plannerMaxReplans",
     )  # Max replan attempts on step failure (planning router decides per turn)
     enable_reflection: bool = Field(
-        default=True,   # 原 False：零延迟捕获，发现当场进 reflections.jsonl 队列
+        default=True,  # 原 False：零延迟捕获，发现当场进 reflections.jsonl 队列
         validation_alias=AliasChoices("enableReflection"),
         serialization_alias="enableReflection",
     )  # Enable post-turn reflection for cross-turn learning

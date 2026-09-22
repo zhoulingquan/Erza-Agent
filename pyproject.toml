@@ -231,6 +231,13 @@ filterwarnings = [
     # tested for real (see dev extras), so silence exactly this warning
     # instead of failing feishu tests for reasons outside our code.
     "ignore:datetime.datetime.utcfromtimestamp.*:DeprecationWarning",
+    # Windows Proactor 析构噪音:每个用例的事件循环关闭后,残留在传输
+    # 管道上的 pipe.close() 触发 "Event loop is closed" unraisable。
+    # 与被测代码无关(Linux selector 实现无此问题),仅静默这一种。
+    # 注:单引号 TOML 字面字符串——message 内的冒号必须写成 \x3a,否则
+    # 破坏 action:message:category 的冒号分隔解析(pytest 会把正则片段
+    # 当类别导入而报 TypeError);双引号字符串又无法表达 \x3a。
+    'ignore:(?s)Exception ignored in\x3a.*Event loop is closed.*:pytest.PytestUnraisableExceptionWarning',
 ]
 
 [tool.coverage.run]

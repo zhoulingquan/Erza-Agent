@@ -24,6 +24,7 @@ def _ch(
     static_dist_path: Path | None = None,
     port: int = _PORT,
     runtime_model_name: Any | None = None,
+    mcp_reloader: Any | None = None,
     **extra: Any,
 ) -> WebSocketChannel:
     cfg: dict[str, Any] = {
@@ -41,6 +42,8 @@ def _ch(
     }
     if runtime_model_name is not None:
         ws_kwargs["runtime_model_name"] = runtime_model_name
+    if mcp_reloader is not None:
+        ws_kwargs["mcp_reloader"] = mcp_reloader
     return WebSocketChannel(
         cfg,
         bus,
@@ -205,11 +208,12 @@ async def test_mcp_presets_routes_require_token_and_return_payload(
     async def _hot_reload(_bus):
         return {"ok": True, "message": "MCP config reloaded.", "requires_restart": False}
 
-    monkeypatch.setattr(
-        "erza.channels.websocket.channel.request_mcp_reload",
-        _hot_reload,
+    channel = _ch(
+        bus,
+        session_manager=_seed_session(tmp_path),
+        port=29913,
+        mcp_reloader=_hot_reload,
     )
-    channel = _ch(bus, session_manager=_seed_session(tmp_path), port=29913)
     server_task = asyncio.create_task(channel.start())
     await asyncio.sleep(0.3)
     try:

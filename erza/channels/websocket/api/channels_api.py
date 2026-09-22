@@ -12,11 +12,12 @@ import threading
 import typing
 from typing import Any, get_args, get_origin
 
-from erza.config.loader import load_config, save_config
-from erza.config.schema import Base, ChannelsConfig
+from erza.config.channels import ChannelsConfig
+from erza.config.schema import Base
 
 from ._query import _query_first, _query_first_alias
 from ._runtime import QueryParams
+from ._settings_store import SettingsStore
 
 
 class WebUIChannelsError(ValueError):
@@ -260,7 +261,7 @@ def _channel_class_meta(cls: type) -> dict[str, Any]:
     }
 
 
-def list_channels() -> dict[str, Any]:
+def list_channels(*, store: SettingsStore | None = None) -> dict[str, Any]:
     """返回所有可用 channel 及其当前配置。
 
     通过 ``discover_all()`` 枚举内置 + 插件 channel，再从
@@ -284,7 +285,8 @@ def list_channels() -> dict[str, Any]:
     except Exception:
         available = {}
 
-    config = load_config()
+    settings = store or SettingsStore()
+    config = settings.read()
     channels_cfg: ChannelsConfig = config.channels
 
     # 支持扫码登录的频道集合 = 已注册 handler 的频道（feishu/weixin/wecom/dingtalk/qq）
@@ -336,7 +338,7 @@ def list_channels() -> dict[str, Any]:
     }
 
 
-def update_channel_config(query: QueryParams) -> dict[str, Any]:
+def update_channel_config(query: QueryParams, store: SettingsStore | None = None) -> dict[str, Any]:
     """更新单个 channel 的配置（JSON 字符串形式提交）。
 
     参数：
@@ -360,7 +362,8 @@ def update_channel_config(query: QueryParams) -> dict[str, Any]:
 
     config_json = _query_first_alias(query, "config", "channelConfig")
 
-    config = load_config()
+    settings = store or SettingsStore()
+    config = settings.read()
     channels_cfg: ChannelsConfig = config.channels
 
     if config_json is not None:
@@ -409,7 +412,7 @@ def update_channel_config(query: QueryParams) -> dict[str, Any]:
             _set_channel_section(channels_cfg, name, {})
 
     try:
-        save_config(config)
+        settings.write(config)
     except Exception as e:
         raise WebUIChannelsError(f"failed to save config: {e}") from e
 
@@ -421,7 +424,7 @@ def update_channel_config(query: QueryParams) -> dict[str, Any]:
     }
 
 
-def delete_channel_config(query: QueryParams) -> dict[str, Any]:
+def delete_channel_config(query: QueryParams, store: SettingsStore | None = None) -> dict[str, Any]:
     """移除某个 channel 的配置。
 
     参数：
@@ -431,14 +434,15 @@ def delete_channel_config(query: QueryParams) -> dict[str, Any]:
     if not name:
         raise WebUIChannelsError("name is required")
 
-    config = load_config()
+    settings = store or SettingsStore()
+    config = settings.read()
     channels_cfg: ChannelsConfig = config.channels
 
     if not _remove_channel_section(channels_cfg, name):
         raise WebUIChannelsError(f"channel '{name}' is not configured", status=404)
 
     try:
-        save_config(config)
+        settings.write(config)
     except Exception as e:
         raise WebUIChannelsError(f"failed to save config: {e}") from e
 
@@ -548,6 +552,16 @@ def _persist_qr_credentials(name: str, credentials: dict[str, Any]) -> dict[str,
             save_registration_result,
         )
 
+        save_settings = SettingsStore()
+        config = save_settings.read()
+        section = getattr(config.channels, "feishu", None)
+        if not isinstance(section, dict):
+            section = {}
+
+        def save_section(next_section: dict[str, Any]) -> None:
+            setattr(config.channels, "feishu", next_section)
+            save_settings.write(config)
+
         save_registration_result(
             {
                 "app_id": credentials.get("app_id", ""),
@@ -555,9 +569,12 @@ def _persist_qr_credentials(name: str, credentials: dict[str, Any]) -> dict[str,
                 "domain": credentials.get("domain", "feishu"),
             },
             instance_id=DEFAULT_INSTANCE_ID,
+            feishu_section=section,
+            save_feishu_section=save_section,
         )
     else:
-        config = load_config()
+        settings = SettingsStore()
+        config = settings.read()
         channels_cfg: ChannelsConfig = config.channels
         current = _get_channel_section(channels_cfg, name) or {}
         if not isinstance(current, dict):
@@ -566,12 +583,12 @@ def _persist_qr_credentials(name: str, credentials: dict[str, Any]) -> dict[str,
         merged = {**current, **credentials, "enabled": True}
         _set_channel_section(channels_cfg, name, merged)
         try:
-            save_config(config)
+            settings.write(config)
         except Exception as e:
             raise WebUIChannelsError(f"failed to save credentials: {e}") from e
 
     # 重新读取已保存的 config 返回给前端
-    cfg = load_config()
+    cfg = SettingsStore().read()
     return _get_channel_section(cfg.channels, name) or {}
 
 

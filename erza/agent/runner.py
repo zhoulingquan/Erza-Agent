@@ -12,6 +12,10 @@ from uuid import uuid4
 from loguru import logger
 
 from erza.agent.execution.context_governance import ContextGovernanceService
+from erza.agent.execution.messages import (
+    build_goal_continue_message,
+    is_blank_text,
+)
 from erza.agent.execution.model_request import ModelRequestExecutor
 from erza.agent.execution.planning import PlanningReflectionService
 from erza.agent.execution.recovery import (
@@ -32,18 +36,16 @@ from erza.ledger import (
     current_call_ledger,
 )
 from erza.providers.base import LLMProvider, LLMResponse, ToolCallRequest
-from erza.tools.registry import ToolRegistry
-from erza.utils.file_edit_events import (
+from erza.session.progress import (
     prepare_file_edit_tracker as _prepare_file_edit_tracker,
 )
+from erza.tools.registry import ToolRegistry
 from erza.utils.helpers import (
     build_assistant_message,
     extract_reasoning,
 )
 from erza.utils.runtime import (
     EMPTY_FINAL_RESPONSE_MESSAGE,
-    build_goal_continue_message,
-    is_blank_text,
 )
 
 if TYPE_CHECKING:

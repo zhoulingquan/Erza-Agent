@@ -42,14 +42,14 @@ if TYPE_CHECKING:
     from erza.agent.runtime_resources import RuntimeResourceRegistry
     from erza.agent.session_turn import SessionTurnService
     from erza.agent.subagent_registry import SubagentDefinition
-    from erza.config.schema import ChannelsConfig
+    from erza.config.channels import ChannelsConfig
+    from erza.contracts.callbacks import ProgressCallback
     from erza.ledger import TurnBudget
+    from erza.providers.runtime import LLMRuntime
     from erza.security.workspace_access import WorkspaceScope
     from erza.session.manager import Session, SessionManager
     from erza.session.webui_turns import WebuiTurnCoordinator
     from erza.tools.registry import ToolRegistry
-    from erza.utils.callback_types import ProgressCallback
-    from erza.utils.llm_runtime import LLMRuntime
 
 
 class TurnState(Enum):

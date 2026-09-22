@@ -73,9 +73,11 @@ class GatewayApplication:
         from erza.cli._gateway_runner import (
             _dream_backlog_total,
         )
+        from erza.cron.migration import migrate_cron_store
         from erza.cron.service import CronService
         from erza.providers.factory import build_provider_snapshot, load_provider_snapshot
         from erza.session.manager import SessionManager
+        from erza.tools.mcp import connect_mcp_servers, request_mcp_reload
         from erza.tools.mcp_runtime import McpRuntime
         from erza.tools.message import MessageTool
 
@@ -111,7 +113,7 @@ class GatewayApplication:
 
         # Preserve existing single-workspace installs, but keep custom workspaces clean.
         if is_default_workspace(config.workspace_path):
-            commands._migrate_cron_store(config)
+            migrate_cron_store(config)
 
         # Create cron service with workspace-scoped store
         cron_store_path = config.workspace_path / "cron" / "jobs.json"
@@ -158,20 +160,34 @@ class GatewayApplication:
         self.cron.on_job = self._on_cron_job
 
         # Create channel manager (forwards SessionManager so the WebSocket
-        # channel can serve the embedded webui's REST surface).
+        # channel can serve the embedded webui's REST surface). WebUI wiring
+        # is bundled into a single WebUIContext.
+        from erza.channels.webui_context import WebUIContext
+
+        webui_context = WebUIContext(
+            runtime_model_name=self._webui_runtime_model_name,
+            static_dist=webui_static_dist,
+            runtime_surface=webui_runtime_surface,
+            runtime_capabilities=webui_runtime_capabilities,
+            provider_loader=self._webui_provider_loader,
+            cron_reloader=self._reload_cron_system_jobs,
+            agent_model_refresher=self._refresh_agent_runtime_model,
+            cron_service=self.cron,
+            tool_registry=self.agent.tools,
+            mcp_reloader=request_mcp_reload,
+            mcp_connector=connect_mcp_servers,
+        )
         self.channels = ChannelManager(
             config,
             self.bus,
             session_manager=self.session_manager,
-            webui_runtime_model_name=self._webui_runtime_model_name,
-            webui_static_dist=webui_static_dist,
-            webui_runtime_surface=webui_runtime_surface,
-            webui_runtime_capabilities=webui_runtime_capabilities,
-            webui_provider_loader=self._webui_provider_loader,
-            webui_cron_reloader=self._reload_cron_system_jobs,
-            webui_agent_model_refresher=self._refresh_agent_runtime_model,
-            webui_cron_service=self.cron,
-            webui_tool_registry=self.agent.tools,
+            context=webui_context,
+            # transcription / websocket 装配值由组合根从全量 config 显式取出注入,
+            # 避免 ChannelManager 直接跨域读取 config.providers / config.tools。
+            groq_api_key=getattr(getattr(config.providers, "groq", None), "api_key", None),
+            groq_api_base=getattr(getattr(config.providers, "groq", None), "api_base", None),
+            restrict_to_workspace=config.tools.restrict_to_workspace,
+            workspace_path=config.workspace_path,
         )
 
         if self.channels.enabled_channels:

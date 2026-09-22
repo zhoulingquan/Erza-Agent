@@ -1,7 +1,7 @@
-"""Tests for tool hint formatting (erza.utils.tool_hints)."""
+"""Tests for tool hint formatting (erza.session.progress)."""
 
 from erza.providers.base import ToolCallRequest
-from erza.utils.tool_hints import format_tool_hints
+from erza.session.progress import format_tool_hints
 
 
 def _tc(name: str, args) -> ToolCallRequest:

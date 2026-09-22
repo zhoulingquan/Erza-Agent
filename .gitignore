@@ -10,6 +10,9 @@
 .workbuddy/
 arch-eval-erza-vs-aniyaa/
 docs/erza-architecture-analysis/
+# Pre-rename leftover: stale miniunicorn/ bytecode + web build output
+# (package renamed to erza/; zero .py sources, nothing imports it).
+miniunicorn/
 
 # Claude / AI assistant artifacts
 docs/superpowers/

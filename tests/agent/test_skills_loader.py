@@ -1,4 +1,4 @@
-"""Tests for erza.agent.skills.SkillsLoader."""
+"""Tests for erza.contracts.skills.SkillsLoader (re-exported via erza.agent.skills)."""
 
 from __future__ import annotations
 
@@ -143,7 +143,7 @@ def test_list_skills_filter_unavailable_excludes_unmet_bin_requirement(
             return None
         return "/usr/bin/true"
 
-    monkeypatch.setattr("erza.agent.skills.shutil.which", fake_which)
+    monkeypatch.setattr("erza.contracts.skills.shutil.which", fake_which)
 
     loader = SkillsLoader(workspace, builtin_skills_dir=builtin)
     assert loader.list_skills(filter_unavailable=True) == []
@@ -168,7 +168,7 @@ def test_list_skills_filter_unavailable_includes_when_bin_requirement_met(
             return "/fake/erza_test_fake_binary"
         return None
 
-    monkeypatch.setattr("erza.agent.skills.shutil.which", fake_which)
+    monkeypatch.setattr("erza.contracts.skills.shutil.which", fake_which)
 
     loader = SkillsLoader(workspace, builtin_skills_dir=builtin)
     entries = loader.list_skills(filter_unavailable=True)
@@ -191,7 +191,7 @@ def test_list_skills_filter_unavailable_false_keeps_unmet_requirements(
     builtin = tmp_path / "builtin"
     builtin.mkdir()
 
-    monkeypatch.setattr("erza.agent.skills.shutil.which", lambda _cmd: None)
+    monkeypatch.setattr("erza.contracts.skills.shutil.which", lambda _cmd: None)
 
     loader = SkillsLoader(workspace, builtin_skills_dir=builtin)
     entries = loader.list_skills(filter_unavailable=False)
@@ -239,13 +239,13 @@ def test_list_skills_openclaw_metadata_parsed_for_requirements(
     builtin = tmp_path / "builtin"
     builtin.mkdir()
 
-    monkeypatch.setattr("erza.agent.skills.shutil.which", lambda _cmd: None)
+    monkeypatch.setattr("erza.contracts.skills.shutil.which", lambda _cmd: None)
 
     loader = SkillsLoader(workspace, builtin_skills_dir=builtin)
     assert loader.list_skills(filter_unavailable=True) == []
 
     monkeypatch.setattr(
-        "erza.agent.skills.shutil.which",
+        "erza.contracts.skills.shutil.which",
         lambda cmd: "/x" if cmd == "erza_oc_bin" else None,
     )
     entries = loader.list_skills(filter_unavailable=True)

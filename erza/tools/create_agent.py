@@ -126,7 +126,7 @@ class CreateAgentTool(Tool):
 
         # Reuse the route's save_agent so name validation, directory creation,
         # and overwrite semantics stay consistent with the HTTP API.
-        from erza.agent.routes_agents import router
+        from erza.contracts.routes_agents import router
 
         try:
             path = router.save_agent(self._workspace, name, content)

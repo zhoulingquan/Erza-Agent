@@ -11,21 +11,26 @@ import shutil
 import urllib.parse
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Mapping
 
 from loguru import logger
 
-from erza.config.loader import load_config, resolve_config_env_vars, save_config
 from erza.config.paths import get_runtime_subdir
 from erza.config.schema import MCPServerConfig
 from erza.tools.registry import ToolRegistry
 from erza.utils.helpers import ensure_dir
 
+from ._preset_catalog import (
+    MCP_PRESETS,
+    McpPreset,
+    McpPresetField,
+    _favicon_url,
+)
 from ._query import _clip_ws_string, _query_first
 from ._runtime import QueryParams
+from ._settings_store import SettingsStore, resolve_config_env_vars
 
 _MCP_PRESET_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$", re.IGNORECASE)
 _SECRET_QUERY_RE = re.compile(
@@ -67,226 +72,6 @@ class McpPresetError(Exception):
         self.status = status
 
 
-@dataclass(frozen=True)
-class McpPresetField:
-    name: str
-    label: str
-    target: tuple[Literal["env", "url_param", "arg", "header"], str]
-    secret: bool = True
-    required: bool = True
-    env_var: str | None = None
-    placeholder: str = ""
-
-
-@dataclass(frozen=True)
-class McpPreset:
-    name: str
-    display_name: str
-    category: str
-    description: str
-    docs_url: str
-    transport: Literal["stdio", "streamableHttp", "sse", "oauth"]
-    install_supported: bool
-    brand_domain: str
-    brand_color: str
-    server: MCPServerConfig | None = None
-    fields: tuple[McpPresetField, ...] = ()
-    requires: str = ""
-    note: str = ""
-
-
-def _favicon_url(domain: str) -> str:
-    return f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
-
-
-MCP_PRESETS: tuple[McpPreset, ...] = (
-    McpPreset(
-        name="playwright",
-        display_name="Playwright",
-        category="browser",
-        description="浏览器自动化 MCP 服务，支持页面操作、截图、表单填写等。",
-        docs_url="https://github.com/anthropics/playwright-mcp",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="playwright.dev",
-        brand_color="#2EAD33",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@playwright/mcp@latest"],
-        ),
-        requires="Node.js",
-        note="无需 API Key，开箱即用。",
-    ),
-    McpPreset(
-        name="context7",
-        display_name="Context7",
-        category="docs",
-        description="获取最新版库文档，为 AI 提供准确的 API 参考。",
-        docs_url="https://github.com/upstash/context7",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="context7.com",
-        brand_color="#DD3105",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@upstash/context7-mcp@latest"],
-        ),
-        # context7 支持可选的 api_key:传入时以 --api-key 参数追加到 args 末尾。
-        fields=(
-            McpPresetField(
-                name="context7_api_key",
-                label="Context7 API key",
-                target=("arg", "--api-key"),
-                secret=True,
-                required=False,
-                placeholder="ctx7_...",
-            ),
-        ),
-        requires="Node.js",
-        note="无需 API Key 即可使用，配置 API Key 可获得更高的速率配额。",
-    ),
-    McpPreset(
-        name="sequential-thinking",
-        display_name="Sequential Thinking",
-        category="reasoning",
-        description="结构化思维工具，帮助 AI 分步骤解决复杂问题。",
-        docs_url="https://github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="modelcontextprotocol.io",
-        brand_color="#6366F1",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-sequential-thinking"],
-        ),
-        requires="Node.js",
-        note="无需 API Key，开箱即用。",
-    ),
-    McpPreset(
-        name="fetch",
-        display_name="Fetch",
-        category="web",
-        description="网页抓取工具，获取 URL 内容并转为 Markdown。",
-        docs_url="https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="modelcontextprotocol.io",
-        brand_color="#0EA5E9",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-fetch"],
-        ),
-        requires="Node.js",
-        note="无需 API Key，开箱即用。",
-    ),
-    McpPreset(
-        name="filesystem",
-        display_name="Filesystem",
-        category="files",
-        description="文件系统访问工具，允许 AI 读写指定目录的文件。",
-        docs_url="https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="modelcontextprotocol.io",
-        brand_color="#10B981",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-filesystem", "/"],
-        ),
-        requires="Node.js",
-        note="默认允许访问根目录，可根据需要修改参数中的路径。",
-    ),
-    McpPreset(
-        name="github",
-        display_name="GitHub",
-        category="dev",
-        description="GitHub 仓库管理，支持搜索、创建 Issue、管理 PR 等。",
-        docs_url="https://github.com/modelcontextprotocol/servers/tree/main/src/github",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="github.com",
-        brand_color="#181717",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-github"],
-        ),
-        fields=(
-            McpPresetField(
-                name="api_key",
-                label="GitHub Personal Access Token",
-                target=("env", "GITHUB_PERSONAL_ACCESS_TOKEN"),
-                secret=True,
-                required=True,
-                env_var="GITHUB_PERSONAL_ACCESS_TOKEN",
-                placeholder="ghp_xxxxxxxxxxxx",
-            ),
-        ),
-        requires="Node.js + GitHub Token",
-        note="在 GitHub Settings → Developer settings → Personal access tokens 生成 Token。",
-    ),
-    McpPreset(
-        name="memory",
-        display_name="Memory",
-        category="knowledge",
-        description="持久化记忆工具，基于知识图谱存储和检索信息。",
-        docs_url="https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="modelcontextprotocol.io",
-        brand_color="#8B5CF6",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-memory"],
-        ),
-        requires="Node.js",
-        note="无需 API Key，开箱即用。",
-    ),
-    McpPreset(
-        name="puppeteer",
-        display_name="Puppeteer",
-        category="browser",
-        description="Puppeteer 浏览器自动化，支持页面截图、PDF 生成、表单提交等。",
-        docs_url="https://github.com/modelcontextprotocol/servers/tree/main/src/puppeteer",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="pptr.dev",
-        brand_color="#40B5A4",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-puppeteer"],
-        ),
-        requires="Node.js",
-        note="无需 API Key，开箱即用。首次运行会下载 Chromium。",
-    ),
-    McpPreset(
-        name="time",
-        display_name="Time",
-        category="utility",
-        description="时间工具，获取当前时间、时区转换等。",
-        docs_url="https://github.com/modelcontextprotocol/servers/tree/main/src/time",
-        transport="stdio",
-        install_supported=True,
-        brand_domain="modelcontextprotocol.io",
-        brand_color="#F59E0B",
-        server=MCPServerConfig(
-            type="stdio",
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-time"],
-        ),
-        requires="Node.js",
-        note="无需 API Key，开箱即用。",
-    ),
-)
-
-
 def _query_value(query: QueryParams, key: str) -> str | None:
     raw = _query_first(query, key)
     if raw is None:
@@ -318,7 +103,7 @@ def _known_preset_names() -> set[str]:
 def _known_mcp_names() -> set[str]:
     names = _known_preset_names()
     with suppress(Exception):
-        names.update(load_config().tools.mcp_servers)
+        names.update(SettingsStore().read().tools.mcp_servers)
     return names
 
 
@@ -795,10 +580,10 @@ def _auto_enable_no_credential_presets() -> None:
     一次性：通过 ``mcp_presets_auto_enabled`` 标记确保只执行一次，
     用户手动关闭后不会被重新启用。
     """
-    config = load_config()
+    settings = SettingsStore()
+    config = settings.read()
     if config.tools.mcp_presets_auto_enabled:
         return
-    changed = False
     for preset in MCP_PRESETS:
         if preset.name in config.tools.mcp_servers:
             continue
@@ -809,13 +594,9 @@ def _auto_enable_no_credential_presets() -> None:
         cfg = _clone_server(preset.server)
         _with_managed_stdio_cwd(preset.name, cfg)
         config.tools.mcp_servers[preset.name] = cfg
-        changed = True
     config.tools.mcp_presets_auto_enabled = True
-    if changed:
-        save_config(config)
-    else:
-        # 标记已执行过自动启用，即使没有新增服务也保存标记
-        save_config(config)
+    # 无论是否有新增服务，首次都会落盘以此持久化 "auto_enabled" 标记
+    settings.write(config)
 
 
 def mcp_presets_payload(
@@ -824,7 +605,7 @@ def mcp_presets_payload(
     tool_preview: Mapping[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     _auto_enable_no_credential_presets()
-    config = load_config()
+    config = SettingsStore().read()
     known = _known_preset_names()
     preset_rows = [
         _preset_payload(preset, config.tools.mcp_servers)
@@ -914,9 +695,16 @@ async def _close_mcp_stacks(stacks: Mapping[str, Any]) -> None:
             await stack.aclose()
 
 
-async def mcp_presets_test_action(query: QueryParams) -> dict[str, Any]:
-    """Connect to an enabled MCP preset and report its tool surface."""
-    from erza.tools.mcp import connect_mcp_servers
+async def mcp_presets_test_action(
+    query: QueryParams,
+    *,
+    mcp_connector: Callable[[dict, ToolRegistry], Awaitable[dict]] | None = None,
+) -> dict[str, Any]:
+    """Connect to an enabled MCP preset and report its tool surface.
+
+    连接函数经 ``mcp_connector`` 注入(生产 handler 从 ``ctx.deps.mcp_connector``
+    传入,组合根接 tools 的 preset 连接实现)。
+    """
 
     name = (_query_first(query, "name") or "").strip()
     if not name:
@@ -927,7 +715,7 @@ async def mcp_presets_test_action(query: QueryParams) -> dict[str, Any]:
     display_name = _display_name_for(name, preset)
 
     try:
-        config = resolve_config_env_vars(load_config())
+        config = resolve_config_env_vars(SettingsStore().read())
     except ValueError as exc:
         return mcp_presets_payload(
             last_action={
@@ -975,11 +763,14 @@ async def mcp_presets_test_action(query: QueryParams) -> dict[str, Any]:
         }
         return mcp_presets_payload(last_action=last_action)
 
+    if mcp_connector is None:
+        raise McpPresetError("MCP connector unavailable", status=503)
+
     registry = ToolRegistry()
     stacks: dict[str, Any] = {}
     try:
         stacks = await asyncio.wait_for(
-            connect_mcp_servers({name: cfg}, registry),
+            mcp_connector({name: cfg}, registry),
             timeout=_test_timeout(cfg),
         )
         tool_prefix = f"mcp_{name}_"
@@ -1202,11 +993,12 @@ def _import_mcp_servers(raw_json: str | None) -> dict[str, MCPServerConfig]:
 
 
 def custom_mcp_action(action: str, query: QueryParams) -> dict[str, Any]:
-    config = load_config()
+    settings = SettingsStore()
+    config = settings.read()
     if action == "custom":
         name, cfg = _custom_server_from_query(query)
         config.tools.mcp_servers[name] = cfg
-        save_config(config)
+        settings.write(config)
         payload = mcp_presets_payload(last_action=_server_action_message(action, name))
         payload["requires_restart"] = True
         return payload
@@ -1214,7 +1006,7 @@ def custom_mcp_action(action: str, query: QueryParams) -> dict[str, Any]:
     if action in {"import", "import-cursor"}:
         servers = _import_mcp_servers(_query_first(query, "config"))
         config.tools.mcp_servers.update(servers)
-        save_config(config)
+        settings.write(config)
         payload = mcp_presets_payload(
             last_action={
                 "ok": True,
@@ -1231,7 +1023,7 @@ def custom_mcp_action(action: str, query: QueryParams) -> dict[str, Any]:
             raise McpPresetError("unknown MCP server", status=404)
         cfg.enabled_tools = _parse_enabled_tools(_query_first(query, "enabled_tools"))
         config.tools.mcp_servers[name] = cfg
-        save_config(config)
+        settings.write(config)
         payload = mcp_presets_payload(last_action=_server_action_message(action, name))
         payload["requires_restart"] = True
         return payload
@@ -1245,14 +1037,15 @@ def mcp_presets_action(action: str, query: QueryParams) -> dict[str, Any]:
         raise McpPresetError("missing MCP preset name")
     preset = _preset_by_name_optional(name)
 
-    config = load_config()
+    settings = SettingsStore()
+    config = settings.read()
     existing = config.tools.mcp_servers.get(name)
 
     if action == "enable":
         if preset is None:
             raise McpPresetError("unknown MCP preset", status=404)
         config.tools.mcp_servers[preset.name] = _materialize_server(preset, query, existing)
-        save_config(config)
+        settings.write(config)
         payload = mcp_presets_payload(last_action=_action_message(action, preset))
         payload["requires_restart"] = True
         return payload
@@ -1269,7 +1062,7 @@ def mcp_presets_action(action: str, query: QueryParams) -> dict[str, Any]:
             except OSError as exc:
                 cleanup_error = str(exc)
             del config.tools.mcp_servers[name]
-            save_config(config)
+            settings.write(config)
         last_action = (
             _action_message(action, preset)
             if preset is not None
@@ -1321,12 +1114,13 @@ async def mcp_presets_settings_action(
     query: QueryParams,
     *,
     reload_mcp: McpReload | None = None,
+    mcp_connector: Callable[[dict, ToolRegistry], Awaitable[dict]] | None = None,
 ) -> dict[str, Any]:
     """Run a WebUI MCP preset action and hot-reload the agent when config changes."""
     if action is None:
         return mcp_presets_payload()
     if action == "test":
-        return await mcp_presets_test_action(query)
+        return await mcp_presets_test_action(query, mcp_connector=mcp_connector)
     if action in _CUSTOM_ACTIONS:
         payload = await asyncio.to_thread(custom_mcp_action, action, query)
     else:

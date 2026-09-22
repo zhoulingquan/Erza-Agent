@@ -19,7 +19,7 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Union
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Union
 
 from websockets.http11 import Request as WsRequest
 from websockets.http11 import Response
@@ -27,6 +27,10 @@ from websockets.http11 import Response
 from erza.bus.queue import MessageBus
 
 from ._http_routes import _merge_sensitive_values_header, _parse_request_path
+from .api._settings_store import SettingsStore
+
+if TYPE_CHECKING:
+    from erza.tools.registry import ToolRegistry
 
 # handler 返回类型:同步 Response 或异步 Awaitable[Response]。
 RouteResult = Union[Response, Awaitable[Response]]
@@ -86,6 +90,13 @@ class RouteDeps:
     # media 目录解析器(测试通过 monkeypatch ``channel.get_media_dir`` 拦截,
     # 必须经过 channel 模块才能生效)。
     get_media_dir: "Callable[..., Any]"
+    # MCP preset 连接函数(组合根从 tools 的 preset 连接实现注入,
+    # preset 测试 handler 不再直接 import tools)。为 None 时 preset 测试
+    # 以 503 降级,生产 handler 永远从 deps 取到注入的 connector。
+    mcp_connector: "Callable[[dict, ToolRegistry], Awaitable[dict]] | None" = None
+    # settings 持久化入口(SettingsStore 无状态,每次 read 均为全新磁盘加载)。
+    # 默认构造一个;测试可经 ``_build_route_deps(settings=...)`` 注入。
+    settings: SettingsStore = field(default_factory=SettingsStore)
 
 
 @dataclass

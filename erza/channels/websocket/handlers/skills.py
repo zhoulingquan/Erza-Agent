@@ -30,7 +30,7 @@ def list_skills(ctx: RouteContext) -> Response:
     Includes disabled skills with a ``disabled`` flag so the UI can render
     the toggle state.
     """
-    from erza.agent.skills import SkillsLoader
+    from erza.contracts.skills import SkillsLoader
 
     try:
         loader = SkillsLoader(ctx.deps.workspace_path)
@@ -124,8 +124,7 @@ def toggle_skill(ctx: RouteContext) -> Response:
     change is picked up on the next agent turn via
     ``SkillsLoader._refresh_disabled_from_config``.
     """
-    from erza.agent.skills import is_valid_skill_name
-    from erza.config.loader import load_config, save_config
+    from erza.contracts.skills import is_valid_skill_name
 
     name = _query_first(ctx.query, "name")
     if not name or not is_valid_skill_name(name):
@@ -136,16 +135,22 @@ def toggle_skill(ctx: RouteContext) -> Response:
     disable = disabled_value.lower() in ("1", "true", "yes", "on")
 
     try:
-        config = load_config()
-        current = list(getattr(config.agents.defaults, "disabled_skills", []) or [])
-        if disable:
-            if name not in current:
-                current.append(name)
-        else:
-            current = [n for n in current if n != name]
-        config.agents.defaults.disabled_skills = current
-        save_config(config)
-        return _http_json_response({"name": name, "disabled": disable, "disabled_skills": current})
+        holder: list[list[str]] = []
+
+        def _toggle(config) -> None:
+            current = list(getattr(config.agents.defaults, "disabled_skills", []) or [])
+            if disable:
+                if name not in current:
+                    current.append(name)
+            else:
+                current = [n for n in current if n != name]
+            config.agents.defaults.disabled_skills = current
+            holder.append(current)
+
+        ctx.deps.settings.update(_toggle)
+        return _http_json_response(
+            {"name": name, "disabled": disable, "disabled_skills": holder[0]}
+        )
     except Exception as exc:
         return _http_error(500, str(exc))
 
@@ -153,7 +158,7 @@ def toggle_skill(ctx: RouteContext) -> Response:
 @router.route("/api/skills/read", methods={"GET"})
 def read_skill(ctx: RouteContext) -> Response:
     """Return a skill's SKILL.md content and bundled file list."""
-    from erza.agent.skills import SkillsLoader
+    from erza.contracts.skills import SkillsLoader
 
     name = _query_first(ctx.query, "name")
     if not name:
@@ -183,7 +188,7 @@ def read_skill(ctx: RouteContext) -> Response:
 @router.route("/api/skills/file", methods={"GET"})
 def read_skill_file(ctx: RouteContext) -> Response:
     """Read a single bundled file from a skill (traversal-safe)."""
-    from erza.agent.skills import SkillsLoader
+    from erza.contracts.skills import SkillsLoader
 
     name = _query_first(ctx.query, "name")
     rel = _query_first(ctx.query, "path")
@@ -210,7 +215,7 @@ def save_skill(ctx: RouteContext) -> Response:
     parameter for small edits.
     """
 
-    from erza.agent.skills import SkillsLoader, is_valid_skill_name
+    from erza.contracts.skills import SkillsLoader, is_valid_skill_name
 
     name = _query_first(ctx.query, "name")
     if not name or not is_valid_skill_name(name):
@@ -252,7 +257,7 @@ def upload_skill(ctx: RouteContext) -> Response:
     """
     import base64
 
-    from erza.agent.skills import SkillsLoader
+    from erza.contracts.skills import SkillsLoader
 
     preferred = _query_first(ctx.query, "name")
     preferred = unquote(preferred) if preferred else None

@@ -304,6 +304,13 @@ export class ErzaClient {
     } catch {
       // ignore
     }
+    // close() means this instance is discarded (App.tsx calls it on auth
+    // failure and rebuilds with a fresh client): drop subscription state so
+    // handler closures are released and a stray connect() can't replay
+    // stale attach frames.
+    this.chatHandlers.clear();
+    this.knownChats.clear();
+    this.pendingInboundByChat.clear();
     this.setStatus("closed");
   }
 

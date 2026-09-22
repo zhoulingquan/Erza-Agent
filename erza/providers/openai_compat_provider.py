@@ -23,7 +23,7 @@ from erza.providers._openai_compat_helpers import (
     _RESPONSES_FAILURE_THRESHOLD,
     _RESPONSES_PROBE_INTERVAL_S,
     _deep_merge,
-    _extract_tc_extras,
+    _extract_text_content,
     _gateway_reasoning_extra_body,
     _get,
     _is_direct_openai_base,
@@ -32,14 +32,15 @@ from erza.providers._openai_compat_helpers import (
     _model_slug,
     _model_thinking_style,
     _openai_compat_timeout_s,
-    _parse_tool_arguments,
+    _parse_response,
+    _parse_stream_chunks,
     _responses_circuit_key,
     _short_tool_id,
     _thinking_extra_body,
     _thinking_styles_for,
     _uses_openrouter_attribution,
 )
-from erza.providers.base import LLMProvider, LLMResponse, ToolCallRequest
+from erza.providers.base import LLMProvider, LLMResponse
 from erza.providers.openai_responses import (
     consume_sdk_stream,
     convert_messages,
@@ -271,7 +272,7 @@ class OpenAICompatProvider(LLMProvider):
         """Coerce block/list content into plain text for strict string-only APIs."""
         if content is None or isinstance(content, str):
             return content
-        text = OpenAICompatProvider._extract_text_content(content)
+        text = _extract_text_content(content)
         if isinstance(text, str) and text:
             return text
         try:
@@ -635,392 +636,17 @@ class OpenAICompatProvider(LLMProvider):
         return body
 
     # ------------------------------------------------------------------
-    # Response parsing
+    # Response parsing (bodies live in _openai_compat_helpers)
     # ------------------------------------------------------------------
 
-    @staticmethod
-    def _maybe_mapping(value: Any) -> dict[str, Any] | None:
-        if isinstance(value, dict):
-            return value
-        model_dump = getattr(value, "model_dump", None)
-        if callable(model_dump):
-            dumped = model_dump()
-            if isinstance(dumped, dict):
-                return dumped
-        return None
-
-    @classmethod
-    def _extract_text_content(cls, value: Any) -> str | None:
-        if value is None:
-            return None
-        if isinstance(value, str):
-            return value
-        if isinstance(value, list):
-            parts: list[str] = []
-            for item in value:
-                item_map = cls._maybe_mapping(item)
-                if item_map:
-                    text = item_map.get("text")
-                    if isinstance(text, str):
-                        parts.append(text)
-                        continue
-                text = getattr(item, "text", None)
-                if isinstance(text, str):
-                    parts.append(text)
-                    continue
-                if isinstance(item, str):
-                    parts.append(item)
-            return "".join(parts) or None
-        return str(value)
-
-    @classmethod
-    def _extract_usage(cls, response: Any) -> dict[str, int]:
-        """Extract token usage from an OpenAI-compatible response.
-
-        Handles both dict-based (raw JSON) and object-based (SDK Pydantic)
-        responses.  Provider-specific ``cached_tokens`` fields are normalised
-        under a single key; see the priority chain inside for details.
-        """
-        # --- resolve usage object ---
-        usage_obj = None
-        response_map = cls._maybe_mapping(response)
-        if response_map is not None:
-            usage_obj = response_map.get("usage")
-        elif hasattr(response, "usage") and response.usage:
-            usage_obj = response.usage
-
-        usage_map = cls._maybe_mapping(usage_obj)
-        if usage_map is not None:
-            result = {
-                "prompt_tokens": int(usage_map.get("prompt_tokens") or 0),
-                "completion_tokens": int(usage_map.get("completion_tokens") or 0),
-                "total_tokens": int(usage_map.get("total_tokens") or 0),
-            }
-        elif usage_obj:
-            result = {
-                "prompt_tokens": getattr(usage_obj, "prompt_tokens", 0) or 0,
-                "completion_tokens": getattr(usage_obj, "completion_tokens", 0) or 0,
-                "total_tokens": getattr(usage_obj, "total_tokens", 0) or 0,
-            }
-        else:
-            return {}
-
-        # --- cached_tokens (normalised across providers) ---
-        # Try nested paths first (dict), fall back to attribute (SDK object).
-        # Priority order ensures the most specific field wins.
-        for path in (
-            ("prompt_tokens_details", "cached_tokens"),  # OpenAI/Zhipu/MiniMax/Qwen/Mistral/xAI
-            ("cached_tokens",),  # StepFun/Moonshot (top-level)
-            ("prompt_cache_hit_tokens",),  # DeepSeek/SiliconFlow
-        ):
-            cached = cls._get_nested_int(usage_map, path)
-            if not cached and usage_obj:
-                cached = cls._get_nested_int(usage_obj, path)
-            if cached:
-                result["cached_tokens"] = cached
-                break
-
-        return result
-
-    @staticmethod
-    def _get_nested_int(obj: Any, path: tuple[str, ...]) -> int:
-        """Drill into *obj* by *path* segments and return an ``int`` value.
-
-        Supports both dict-key access and attribute access so it works
-        uniformly with raw JSON dicts **and** SDK Pydantic models.
-        """
-        current = obj
-        for segment in path:
-            if current is None:
-                return 0
-            if isinstance(current, dict):
-                current = current.get(segment)
-            else:
-                current = getattr(current, segment, None)
-        return int(current or 0) if current is not None else 0
-
     def _parse(self, response: Any) -> LLMResponse:
-        if isinstance(response, str):
-            return LLMResponse(content=response, finish_reason="stop")
-
-        response_map = self._maybe_mapping(response)
-        if response_map is not None:
-            choices = response_map.get("choices") or []
-            if not choices:
-                content = self._extract_text_content(
-                    response_map.get("content") or response_map.get("output_text")
-                )
-                reasoning_content = self._extract_text_content(
-                    response_map.get("reasoning_content")
-                )
-                if content is not None:
-                    return LLMResponse(
-                        content=content,
-                        reasoning_content=reasoning_content,
-                        finish_reason=str(response_map.get("finish_reason") or "stop"),
-                        usage=self._extract_usage(response_map),
-                    )
-                return LLMResponse(
-                    content="Error: API returned empty choices.", finish_reason="error"
-                )
-
-            choice0 = self._maybe_mapping(choices[0]) or {}
-            msg0 = self._maybe_mapping(choice0.get("message")) or {}
-            content = self._extract_text_content(msg0.get("content"))
-            finish_reason = str(choice0.get("finish_reason") or "stop")
-
-            raw_tool_calls: list[Any] = []
-            # StepFun: fallback to reasoning field when content is empty
-            if (
-                not content
-                and msg0.get("reasoning")
-                and self._spec
-                and self._spec.reasoning_as_content
-            ):
-                content = self._extract_text_content(msg0.get("reasoning"))
-            reasoning_content = msg0.get("reasoning_content")
-            if not reasoning_content and msg0.get("reasoning"):
-                reasoning_content = self._extract_text_content(msg0.get("reasoning"))
-            for ch in choices:
-                ch_map = self._maybe_mapping(ch) or {}
-                m = self._maybe_mapping(ch_map.get("message")) or {}
-                tool_calls = m.get("tool_calls")
-                if isinstance(tool_calls, list) and tool_calls:
-                    raw_tool_calls.extend(tool_calls)
-                    if ch_map.get("finish_reason") in ("tool_calls", "stop"):
-                        finish_reason = str(ch_map["finish_reason"])
-                if not content:
-                    content = self._extract_text_content(m.get("content"))
-                if not reasoning_content:
-                    reasoning_content = m.get("reasoning_content")
-
-            parsed_tool_calls = []
-            for tc in raw_tool_calls:
-                tc_map = self._maybe_mapping(tc) or {}
-                fn = self._maybe_mapping(tc_map.get("function")) or {}
-                args = fn.get("arguments", {})
-                if isinstance(args, str):
-                    args = json_repair.loads(args)
-                ec, prov, fn_prov = _extract_tc_extras(tc)
-                parsed_tool_calls.append(
-                    ToolCallRequest(
-                        id=str(tc_map.get("id") or _short_tool_id()),
-                        name=str(fn.get("name") or ""),
-                        arguments=args if isinstance(args, dict) else {},
-                        extra_content=ec,
-                        provider_specific_fields=prov,
-                        function_provider_specific_fields=fn_prov,
-                    )
-                )
-
-            return LLMResponse(
-                content=content,
-                tool_calls=parsed_tool_calls,
-                finish_reason=finish_reason,
-                usage=self._extract_usage(response_map),
-                reasoning_content=reasoning_content if isinstance(reasoning_content, str) else None,
-            )
-
-        if not response.choices:
-            return LLMResponse(content="Error: API returned empty choices.", finish_reason="error")
-
-        choice = response.choices[0]
-        msg = choice.message
-        content = msg.content
-        finish_reason = choice.finish_reason
-
-        raw_tool_calls: list[Any] = []
-        for ch in response.choices:
-            m = ch.message
-            if hasattr(m, "tool_calls") and m.tool_calls:
-                raw_tool_calls.extend(m.tool_calls)
-                if ch.finish_reason in ("tool_calls", "stop"):
-                    finish_reason = ch.finish_reason
-            if not content and m.content:
-                content = m.content
-            if (
-                not content
-                and getattr(m, "reasoning", None)
-                and self._spec
-                and self._spec.reasoning_as_content
-            ):
-                content = m.reasoning
-
-        tool_calls = []
-        for tc in raw_tool_calls:
-            args = tc.function.arguments
-            if isinstance(args, str):
-                args = json_repair.loads(args)
-            ec, prov, fn_prov = _extract_tc_extras(tc)
-            tool_calls.append(
-                ToolCallRequest(
-                    id=str(getattr(tc, "id", None) or _short_tool_id()),
-                    name=tc.function.name,
-                    arguments=args,
-                    extra_content=ec,
-                    provider_specific_fields=prov,
-                    function_provider_specific_fields=fn_prov,
-                )
-            )
-
-        reasoning_content = getattr(msg, "reasoning_content", None) or None
-        if not reasoning_content and getattr(msg, "reasoning", None):
-            reasoning_content = msg.reasoning
-
-        return LLMResponse(
-            content=content,
-            tool_calls=tool_calls,
-            finish_reason=finish_reason or "stop",
-            usage=self._extract_usage(response),
-            reasoning_content=reasoning_content,
-        )
+        """Parse a single non-streaming response (delegated to helpers)."""
+        return _parse_response(response, getattr(self, "_spec", None))
 
     @classmethod
     def _parse_chunks(cls, chunks: list[Any]) -> LLMResponse:
-        content_parts: list[str] = []
-        reasoning_parts: list[str] = []
-        tc_bufs: dict[int, dict[str, Any]] = {}
-        finish_reason = "stop"
-        usage: dict[str, int] = {}
-
-        def _accum_tc(tc: Any, idx_hint: int) -> None:
-            """Accumulate one streaming tool-call delta into *tc_bufs*."""
-            tc_index: int = _get(tc, "index") if _get(tc, "index") is not None else idx_hint
-            buf = tc_bufs.setdefault(
-                tc_index,
-                {
-                    "id": "",
-                    "name": "",
-                    "arguments": "",
-                    "extra_content": None,
-                    "prov": None,
-                    "fn_prov": None,
-                },
-            )
-            tc_id = _get(tc, "id")
-            if tc_id:
-                buf["id"] = str(tc_id)
-            fn = _get(tc, "function")
-            if fn is not None:
-                fn_name = _get(fn, "name")
-                if fn_name:
-                    buf["name"] = str(fn_name)
-                fn_args = _get(fn, "arguments")
-                if fn_args:
-                    buf["arguments"] += str(fn_args)
-            ec, prov, fn_prov = _extract_tc_extras(tc)
-            if ec:
-                buf["extra_content"] = ec
-            if prov:
-                buf["prov"] = prov
-            if fn_prov:
-                buf["fn_prov"] = fn_prov
-
-        def _accum_legacy_function_call(function_call: Any) -> None:
-            """Accumulate legacy ``delta.function_call`` streaming chunks."""
-            if not function_call:
-                return
-            buf = tc_bufs.setdefault(
-                0,
-                {
-                    "id": "",
-                    "name": "",
-                    "arguments": "",
-                    "extra_content": None,
-                    "prov": None,
-                    "fn_prov": None,
-                },
-            )
-            fn_name = _get(function_call, "name")
-            if fn_name:
-                buf["name"] = str(fn_name)
-            fn_args = _get(function_call, "arguments")
-            if fn_args:
-                buf["arguments"] += str(fn_args)
-
-        for chunk in chunks:
-            if isinstance(chunk, str):
-                content_parts.append(chunk)
-                continue
-
-            chunk_map = cls._maybe_mapping(chunk)
-            if chunk_map is not None:
-                choices = chunk_map.get("choices") or []
-                if not choices:
-                    usage = cls._extract_usage(chunk_map) or usage
-                    text = cls._extract_text_content(
-                        chunk_map.get("content") or chunk_map.get("output_text")
-                    )
-                    if text:
-                        content_parts.append(text)
-                    continue
-                choice = cls._maybe_mapping(choices[0]) or {}
-                if choice.get("finish_reason"):
-                    finish_reason = str(choice["finish_reason"])
-                delta = cls._maybe_mapping(choice.get("delta")) or {}
-                text = cls._extract_text_content(delta.get("content"))
-                if text:
-                    content_parts.append(text)
-                text = cls._extract_text_content(delta.get("reasoning_content"))
-                if not text:
-                    text = cls._extract_text_content(delta.get("reasoning"))
-                if text:
-                    reasoning_parts.append(text)
-                for idx, tc in enumerate(delta.get("tool_calls") or []):
-                    _accum_tc(tc, idx)
-                _accum_legacy_function_call(delta.get("function_call"))
-                usage = cls._extract_usage(chunk_map) or usage
-                continue
-
-            if not chunk.choices:
-                usage = cls._extract_usage(chunk) or usage
-                continue
-            choice = chunk.choices[0]
-            if choice.finish_reason:
-                finish_reason = choice.finish_reason
-            delta = choice.delta
-            if delta and delta.content:
-                content_parts.append(delta.content)
-            if delta:
-                reasoning = getattr(delta, "reasoning_content", None)
-                if not reasoning:
-                    reasoning = getattr(delta, "reasoning", None)
-                if reasoning:
-                    reasoning_parts.append(reasoning)
-            for tc in (getattr(delta, "tool_calls", None) or []) if delta else []:
-                _accum_tc(tc, getattr(tc, "index", 0))
-            if delta:
-                _accum_legacy_function_call(getattr(delta, "function_call", None))
-
-        # Some providers (e.g. Zhipu/GLM) reuse the same tool_call id for
-        # parallel tool calls in streaming mode. Deduplicate before building
-        # the response so downstream tool messages don't collide.
-        _seen_tc_ids: set[str] = set()
-        for b in tc_bufs.values():
-            if not b["id"] or b["id"] in _seen_tc_ids:
-                b["id"] = _short_tool_id()
-            _seen_tc_ids.add(b["id"])
-
-        return LLMResponse(
-            content="".join(content_parts) or None,
-            tool_calls=[
-                ToolCallRequest(
-                    id=b["id"] or _short_tool_id(),
-                    name=b["name"],
-                    # Mirror the non-streaming ``_parse`` guard: a payload that
-                    # repairs to a non-dict (bare string / number / list) must
-                    # not leak into downstream tool dispatch as a weird type.
-                    arguments=_parse_tool_arguments(b["arguments"]),
-                    extra_content=b.get("extra_content"),
-                    provider_specific_fields=b.get("prov"),
-                    function_provider_specific_fields=b.get("fn_prov"),
-                )
-                for b in tc_bufs.values()
-            ],
-            finish_reason=finish_reason,
-            usage=usage,
-            reasoning_content="".join(reasoning_parts) or None,
-        )
+        """Parse accumulated streaming chunks (delegated to helpers)."""
+        return _parse_stream_chunks(chunks)
 
     @classmethod
     def _extract_error_metadata(cls, e: Exception) -> dict[str, Any]:
@@ -1263,7 +889,7 @@ class OpenAICompatProvider(LLMProvider):
                             "reasoning",
                             None,
                         )
-                        r_text = self._extract_text_content(reasoning)
+                        r_text = _extract_text_content(reasoning)
                         if r_text:
                             await on_thinking_delta(r_text)
                     if on_tool_call_delta:

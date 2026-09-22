@@ -19,10 +19,11 @@ captured as closures (``agent``, ``config``, ``hb_cfg``,
 
 A handful of names that tests patch on the ``erza.cli.commands``
 module namespace (``commands.evaluate_response``,
-``commands.sync_workspace_templates``, ``commands._migrate_cron_store``,
-``commands.AgentLoop``) are looked up through ``commands.<name>`` at
-call time (late binding) so those patches continue to take effect
-without changing the tests.
+``commands.sync_workspace_templates``, ``commands.AgentLoop``) are
+looked up through ``commands.<name>`` at call time (late binding) so
+those patches continue to take effect without changing the tests.
+(Cron migration moved to ``erza.cron.migration.migrate_cron_store``;
+``commands._migrate_cron_store`` remains a re-export for compat.)
 """
 
 from typing import Any

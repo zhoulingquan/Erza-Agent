@@ -18,10 +18,10 @@ from loguru import logger
 from erza.bus.events import InboundMessage, OutboundMessage
 from erza.bus.queue import MessageBus
 from erza.providers.base import LLMProvider
+from erza.providers.runtime import LLMRuntime
 from erza.session.goal_state import goal_state_ws_blob
 from erza.session.manager import Session, SessionManager
 from erza.utils.helpers import truncate_text
-from erza.utils.llm_runtime import LLMRuntime
 
 WEBUI_SESSION_METADATA_KEY = "webui"
 WEBUI_TITLE_METADATA_KEY = "title"

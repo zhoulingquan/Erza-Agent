@@ -1,0 +1,420 @@
+"""File-edit activity helpers for WebUI progress events (non-streaming core).
+
+The live/streaming file-edit tracker lives in :mod:`._streaming`; the
+tool-event payload builders live in :mod:`._tool_events`.  This package is
+the canonical home of ``erza.session.progress`` (see ``__init__.py``), which
+used to be a flat 995-line module before the 800-line new-file budget forced
+the split.
+"""
+
+from __future__ import annotations
+
+import difflib
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+TRACKED_FILE_EDIT_TOOLS = frozenset({"write_file", "edit_file", "apply_patch"})
+_MAX_SNAPSHOT_BYTES = 2 * 1024 * 1024
+
+
+@dataclass(slots=True)
+class FileSnapshot:
+    path: Path
+    exists: bool
+    text: str | None
+    unreadable: bool = False
+    binary: bool = False
+    oversized: bool = False
+
+    @property
+    def countable(self) -> bool:
+        return (
+            self.text is not None and not self.binary and not self.oversized and not self.unreadable
+        )
+
+
+@dataclass(slots=True)
+class FileEditTracker:
+    call_id: str
+    tool: str
+    path: Path
+    display_path: str
+    before: FileSnapshot
+
+
+def is_file_edit_tool(tool_name: str | None) -> bool:
+    return bool(tool_name) and tool_name in TRACKED_FILE_EDIT_TOOLS
+
+
+def resolve_file_edit_path(
+    tool: Any,
+    workspace: Path | None,
+    params: dict[str, Any] | None,
+) -> Path | None:
+    """Resolve the target file path after tool argument preparation."""
+    if not isinstance(params, dict):
+        return None
+    raw_path = params.get("path")
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return None
+    resolver = getattr(tool, "_resolve", None)
+    if callable(resolver):
+        try:
+            resolved = resolver(raw_path)
+            if isinstance(resolved, Path):
+                return resolved
+            if resolved:
+                return Path(resolved)
+        except Exception:
+            return None
+    if workspace is None:
+        return Path(raw_path).expanduser().resolve()
+    return (workspace / raw_path).expanduser().resolve()
+
+
+def display_file_edit_path(path: Path, workspace: Path | None) -> str:
+    if workspace is not None:
+        try:
+            return path.resolve().relative_to(workspace.resolve()).as_posix()
+        except Exception:
+            pass
+    return path.as_posix()
+
+
+def read_file_snapshot(path: Path, *, max_bytes: int = _MAX_SNAPSHOT_BYTES) -> FileSnapshot:
+    try:
+        if not path.exists() or not path.is_file():
+            return FileSnapshot(path=path, exists=False, text="")
+        size = path.stat().st_size
+        if size > max_bytes:
+            return FileSnapshot(path=path, exists=True, text=None, oversized=True)
+        raw = path.read_bytes()
+    except OSError:
+        return FileSnapshot(path=path, exists=path.exists(), text=None, unreadable=True)
+    if b"\x00" in raw:
+        return FileSnapshot(path=path, exists=True, text=None, binary=True)
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return FileSnapshot(path=path, exists=True, text=None, binary=True)
+    return FileSnapshot(path=path, exists=True, text=text.replace("\r\n", "\n"))
+
+
+def line_diff_stats(before: str | None, after: str | None) -> tuple[int, int]:
+    """Return ``(added, deleted)`` for a UTF-8 text line-level diff."""
+    if before is None or after is None:
+        return 0, 0
+    if before == "":
+        return _text_line_count(after), 0
+    before_lines = before.replace("\r\n", "\n").splitlines()
+    after_lines = after.replace("\r\n", "\n").splitlines()
+    added = 0
+    deleted = 0
+    matcher = difflib.SequenceMatcher(a=before_lines, b=after_lines, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            continue
+        if tag in ("replace", "delete"):
+            deleted += i2 - i1
+        if tag in ("replace", "insert"):
+            added += j2 - j1
+    return added, deleted
+
+
+def _text_line_count(text: str) -> int:
+    if not text:
+        return 0
+    line_count = 0
+    last_was_newline = False
+    last_was_cr = False
+    for ch in text:
+        if ch == "\r":
+            line_count += 1
+            last_was_newline = True
+            last_was_cr = True
+        elif ch == "\n":
+            if not last_was_cr:
+                line_count += 1
+            last_was_newline = True
+            last_was_cr = False
+        else:
+            last_was_newline = False
+            last_was_cr = False
+    return line_count if last_was_newline else line_count + 1
+
+
+def prepare_file_edit_tracker(
+    *,
+    call_id: str,
+    tool_name: str,
+    tool: Any,
+    workspace: Path | None,
+    params: dict[str, Any] | None,
+) -> FileEditTracker | None:
+    trackers = prepare_file_edit_trackers(
+        call_id=call_id,
+        tool_name=tool_name,
+        tool=tool,
+        workspace=workspace,
+        params=params,
+    )
+    return trackers[0] if trackers else None
+
+
+def prepare_file_edit_trackers(
+    *,
+    call_id: str,
+    tool_name: str,
+    tool: Any,
+    workspace: Path | None,
+    params: dict[str, Any] | None,
+) -> list[FileEditTracker]:
+    if not is_file_edit_tool(tool_name):
+        return []
+    paths = resolve_file_edit_paths(tool_name, tool, workspace, params)
+    trackers: list[FileEditTracker] = []
+    seen: set[Path] = set()
+    for path in paths:
+        try:
+            resolved = path.resolve()
+        except Exception:
+            resolved = path
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        before = read_file_snapshot(path)
+        trackers.append(
+            FileEditTracker(
+                call_id=str(call_id or ""),
+                tool=tool_name,
+                path=path,
+                display_path=display_file_edit_path(path, workspace),
+                before=before,
+            )
+        )
+    return trackers
+
+
+def resolve_file_edit_paths(
+    tool_name: str,
+    tool: Any,
+    workspace: Path | None,
+    params: dict[str, Any] | None,
+) -> list[Path]:
+    if tool_name == "apply_patch":
+        return _resolve_apply_patch_paths(tool, workspace, params)
+    path = resolve_file_edit_path(tool, workspace, params)
+    if path is None:
+        return []
+    return [path]
+
+
+def _resolve_apply_patch_paths(
+    tool: Any,
+    workspace: Path | None,
+    params: dict[str, Any] | None,
+) -> list[Path]:
+    if not isinstance(params, dict):
+        return []
+    edits = params.get("edits")
+    if not isinstance(edits, list) or not edits:
+        return []
+    if params.get("dry_run") is True:
+        return []
+
+    resolved: list[Path] = []
+    seen: set[Path] = set()
+    for edit in edits:
+        if not isinstance(edit, dict):
+            continue
+        raw_path = edit.get("path")
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            continue
+        path = _resolve_raw_file_edit_path(tool, workspace, raw_path)
+        if path is not None and path not in seen:
+            seen.add(path)
+            resolved.append(path)
+    return resolved
+
+
+def _resolve_raw_file_edit_path(
+    tool: Any,
+    workspace: Path | None,
+    raw_path: str,
+) -> Path | None:
+    resolver = getattr(tool, "_resolve", None)
+    if callable(resolver):
+        try:
+            resolved = resolver(raw_path)
+            if isinstance(resolved, Path):
+                return resolved
+            if resolved:
+                return Path(resolved)
+        except Exception:
+            return None
+    if workspace is None:
+        return Path(raw_path).expanduser().resolve()
+    return (workspace / raw_path).expanduser().resolve()
+
+
+def build_file_edit_start_event(
+    tracker: FileEditTracker,
+    params: dict[str, Any] | None,
+) -> dict[str, Any]:
+    predicted_after = _predict_after_text(tracker.tool, params or {}, tracker.before)
+    if tracker.before.countable and predicted_after is not None:
+        added, deleted = line_diff_stats(tracker.before.text, predicted_after)
+    else:
+        added, deleted = 0, 0
+    return _event_payload(
+        tracker,
+        phase="start",
+        status="editing",
+        added=added,
+        deleted=deleted,
+        approximate=True,
+    )
+
+
+def build_file_edit_end_event(
+    tracker: FileEditTracker,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    after = read_file_snapshot(tracker.path)
+    counted = False
+    if tracker.before.countable and after.countable:
+        added, deleted = line_diff_stats(tracker.before.text, after.text)
+        counted = True
+    else:
+        predicted_after = _predict_after_text(tracker.tool, params or {}, tracker.before)
+        if tracker.before.countable and predicted_after is not None:
+            added, deleted = line_diff_stats(tracker.before.text, predicted_after)
+            counted = True
+        else:
+            added, deleted = 0, 0
+    return _event_payload(
+        tracker,
+        phase="end",
+        status="done",
+        added=added,
+        deleted=deleted,
+        approximate=False,
+        binary=(after.binary or after.oversized or after.unreadable) and not counted,
+        operation="delete" if tracker.before.exists and not after.exists else None,
+    )
+
+
+def build_file_edit_error_event(
+    tracker: FileEditTracker,
+    error: str | None = None,
+) -> dict[str, Any]:
+    payload = _event_payload(
+        tracker,
+        phase="error",
+        status="error",
+        added=0,
+        deleted=0,
+        approximate=False,
+    )
+    if error:
+        payload["error"] = error.strip()[:240]
+    return payload
+
+
+def build_file_edit_live_event(
+    tracker: FileEditTracker,
+    *,
+    added: int,
+    deleted: int = 0,
+    operation: str | None = None,
+) -> dict[str, Any]:
+    """Build an approximate in-progress event while tool-call arguments stream."""
+    return _event_payload(
+        tracker,
+        phase="start",
+        status="editing",
+        added=added,
+        deleted=deleted,
+        approximate=True,
+        operation=operation,
+    )
+
+
+def build_file_edit_pending_event(
+    *,
+    call_id: str,
+    tool_name: str,
+    added: int = 0,
+    deleted: int = 0,
+) -> dict[str, Any]:
+    """Build an early placeholder before the streamed JSON path is available."""
+    return {
+        "version": 1,
+        "call_id": str(call_id or ""),
+        "tool": tool_name,
+        "path": "",
+        "phase": "start",
+        "added": max(0, int(added)),
+        "deleted": max(0, int(deleted)),
+        "approximate": True,
+        "status": "editing",
+        "pending": True,
+    }
+
+
+def _event_payload(
+    tracker: FileEditTracker,
+    *,
+    phase: str,
+    status: str,
+    added: int,
+    deleted: int,
+    approximate: bool,
+    binary: bool = False,
+    operation: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "version": 1,
+        "call_id": tracker.call_id,
+        "tool": tracker.tool,
+        "path": tracker.display_path,
+        "absolute_path": tracker.path.as_posix(),
+        "phase": phase,
+        "added": max(0, int(added)),
+        "deleted": max(0, int(deleted)),
+        "approximate": bool(approximate),
+        "status": status,
+    }
+    if binary:
+        payload["binary"] = True
+    if operation:
+        payload["operation"] = operation
+    return payload
+
+
+def _predict_after_text(
+    tool_name: str,
+    params: dict[str, Any],
+    before: FileSnapshot,
+) -> str | None:
+    if not before.countable:
+        return None
+    before_text = before.text or ""
+    if tool_name == "write_file":
+        content = params.get("content")
+        return content if isinstance(content, str) else ""
+    if tool_name == "edit_file":
+        old_text = params.get("old_text")
+        new_text = params.get("new_text")
+        if not isinstance(old_text, str) or not isinstance(new_text, str):
+            return None
+        replace_all = bool(params.get("replace_all"))
+        if old_text == "":
+            return new_text if not before.exists else before_text
+        if old_text in before_text:
+            if replace_all:
+                return before_text.replace(old_text, new_text)
+            return before_text.replace(old_text, new_text, 1)
+        return None
+    return None

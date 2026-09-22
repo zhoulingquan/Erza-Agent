@@ -17,13 +17,13 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from erza.agent.execution.model_request import ModelRequestExecutor
-from erza.utils.helpers import build_assistant_message
-from erza.utils.prompt_templates import render_template
-from erza.utils.runtime import (
+from erza.agent.execution.messages import (
     build_length_recovery_message,
     is_blank_text,
 )
+from erza.agent.execution.model_request import ModelRequestExecutor
+from erza.utils.helpers import build_assistant_message
+from erza.utils.prompt_templates import render_template
 
 if TYPE_CHECKING:
     from erza.agent.hook import AgentHook, AgentHookContext

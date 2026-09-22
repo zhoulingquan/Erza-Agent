@@ -16,8 +16,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from erza.config.loader import load_config
-
 from ._query import QueryParams, _clip_ws_string, _parse_bool, _query_first, _query_first_alias
 from ._runtime import (
     RuntimeSurface,
@@ -27,6 +25,7 @@ from ._runtime import (
     restart_behavior_by_section,
     runtime_capabilities,
 )
+from ._settings_store import SettingsStore
 from .model_settings_api import (
     create_model_configuration,
     delete_all_providers,
@@ -50,13 +49,15 @@ def settings_payload(
     runtime_capability_overrides: dict[str, Any] | None = None,
     restart_required_sections: list[str] | None = None,
     apply_state: dict[str, Any] | None = None,
+    store: SettingsStore | None = None,
 ) -> dict[str, Any]:
     """聚合各域 payload builder,组装完整 settings payload。
 
     各域 api 模块提供独立的 payload 构造函数,此处调用它们合并。
     最后通过 ``decorate_settings_payload`` 附加 runtime surface 元数据。
     """
-    config = load_config()
+    settings = store or SettingsStore()
+    config = settings.read()
     payload: dict[str, Any] = {}
     # 各域 payload builder 返回的 key 互不重叠,直接 merge。
     payload.update(model_settings_payload(config))

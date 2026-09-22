@@ -322,7 +322,7 @@ async def test_process_message_does_not_fallback_when_top_level_media_exists_but
         "image",
     )
     assert inbound.media == []
-    assert "[image]" in inbound.content
+    assert "[image (download failed)]" in inbound.content
     assert "/tmp/ref.jpg" not in inbound.content
 
 

@@ -39,6 +39,7 @@ import segno
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from erza.channels.websocket.api._query import _query_first
+from erza.channels.websocket.api._settings_store import SettingsStore
 from erza.security.network import create_ssrf_safe_client, validate_url_target
 
 # 项目标识，传给第三方扫码授权端点作为 source 参数（参考 QwenPaw PROJECT_NAME）。
@@ -288,9 +289,7 @@ class FeishuQRCodeAuthHandler(QRCodeAuthHandler):
             return qp_domain
         # fallback 到 config 中已保存的 domain
         try:
-            from erza.config.loader import load_config
-
-            cfg = load_config()
+            cfg = SettingsStore().read()
             feishu_cfg = getattr(cfg.channels, "feishu", None)
             if feishu_cfg is not None:
                 domain_val = (
@@ -429,9 +428,7 @@ class WeixinQRCodeAuthHandler(QRCodeAuthHandler):
         if qp_base:
             return qp_base
         try:
-            from erza.config.loader import load_config
-
-            cfg = load_config()
+            cfg = SettingsStore().read()
             weixin_cfg = getattr(cfg.channels, "weixin", None)
             if weixin_cfg is not None:
                 base = (

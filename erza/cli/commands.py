@@ -87,6 +87,10 @@ from erza.cli.stream import StreamRenderer, ThinkingSpinner
 from erza.composition.agent_app import build_agent_application
 from erza.config.paths import get_workspace_path, is_default_workspace
 from erza.config.schema import Config
+from erza.cron.migration import (  # noqa: F401 — re-exported for compat
+    _migrate_cron_store,
+    migrate_cron_store,
+)
 from erza.utils.helpers import sync_workspace_templates
 from erza.utils.restart import (
     consume_restart_notice_from_env,
@@ -347,17 +351,9 @@ def _warn_deprecated_config_keys(config_path: Path | None) -> None:
         )
 
 
-def _migrate_cron_store(config: "Config") -> None:
-    """One-time migration: move legacy global cron store into the workspace."""
-    from erza.config.paths import get_cron_dir
-
-    legacy_path = get_cron_dir() / "jobs.json"
-    new_path = config.workspace_path / "cron" / "jobs.json"
-    if legacy_path.is_file() and not new_path.exists():
-        new_path.parent.mkdir(parents=True, exist_ok=True)
-        import shutil
-
-        shutil.move(str(legacy_path), str(new_path))
+# NOTE: _migrate_cron_store / migrate_cron_store are re-exported from
+# erza.cron.migration (top imports) so ``from erza.cli.commands import
+# _migrate_cron_store`` keeps working for tests / external scripts.
 
 
 # ============================================================================

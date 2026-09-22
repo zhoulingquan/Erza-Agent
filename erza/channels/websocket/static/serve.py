@@ -25,8 +25,9 @@ def serve_static(dist_path: Path, request_path: str) -> Response | None:
     rel = request_path.lstrip("/")
     if not rel:
         rel = "index.html"
-    # Reject path-traversal attempts and absolute targets.
-    if ".." in rel.split("/") or rel.startswith("/"):
+    # Reject path-traversal attempts; the resolve()/relative_to() check below
+    # is the authoritative guard.
+    if ".." in rel.split("/"):
         return _http_error(403, "Forbidden")
     candidate = (dist_path / rel).resolve()
     try:

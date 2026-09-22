@@ -26,7 +26,7 @@ from erza.agent.turn_overrides import context_without_overrides
 from erza.bus.events import InboundMessage, OutboundMessage, make_session_key
 from erza.bus.queue import MessageBus
 from erza.command import CommandApplicationService, CommandContext, CommandRouter
-from erza.utils.callback_types import ProgressCallback
+from erza.contracts.callbacks import ProgressCallback
 
 if TYPE_CHECKING:
     from erza.agent.autocompact import AutoCompact

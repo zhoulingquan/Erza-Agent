@@ -9,15 +9,15 @@ from typing import Any, Awaitable, Callable
 from loguru import logger
 
 from erza.agent.hook import AgentHook, AgentHookContext
-from erza.utils.callback_types import ProgressCallback
-from erza.utils.helpers import IncrementalThinkExtractor, strip_think
-from erza.utils.progress_events import (
+from erza.contracts.callbacks import ProgressCallback
+from erza.session.progress import (
     build_tool_event_finish_payloads,
     build_tool_event_start_payload,
+    format_tool_hints,
     invoke_on_progress,
     on_progress_accepts_tool_events,
 )
-from erza.utils.tool_hints import format_tool_hints
+from erza.utils.helpers import IncrementalThinkExtractor, strip_think
 
 
 class AgentProgressHook(AgentHook):

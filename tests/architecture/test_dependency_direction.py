@@ -25,6 +25,12 @@ E. Base-layer sink packages (``providers`` / ``utils`` / ``security`` /
    import the cli entry layer (``erza.cli.*``, bare ``cli.*`` both
    matched).  No exemptions.
 
+F. ``erza.channels`` must not reach past the tools facade: only
+   ``erza.tools.registry`` (``ToolRegistry``) is importable.  Direct
+   imports of tool implementations (e.g. ``erza.tools.mcp``) are
+   declared below and must be eliminated via injection (``WebUIContext``
+   callbacks / ``RouteContext`` deps) or bus events.
+
 The scanner is deliberately dependency-free (pure ``ast``): every
 ``erza/**/*.py`` file is parsed, import bindings are resolved, and
 accesses are checked.  Instance-level private access on objects that are not
@@ -60,27 +66,26 @@ BUSINESS_PACKAGES = frozenset(
     }
 )
 
-# Rule B 已声明的过渡期例外：channels 对 agent 的既有功能依赖。
-# - channel.py 经 agent.tools.mcp.request_mcp_reload 触发 MCP 服务热重载。
-# - handlers/skills.py 复用 agent.skills 的 SkillsLoader 校验/加载技能。
-# - handlers/agents.py 复用 agent.routes_agents 的子代理 CRUD/生成 handler
-#   (create_agent 工具与 /api/agents* 端点共用同一实现)。
-# 长期应改为依赖注入(bus 事件或注入服务),届时移除对应豁免条目。
-AGENT_IMPORT_EXEMPTIONS = frozenset(
-    {
-        ("channels/websocket/handlers/agents", "erza.agent.routes_agents"),
-        ("channels/websocket/handlers/skills", "erza.agent.skills"),
-    }
-)
+# Rule B: channels 对 agent 的功能依赖已于 Phase 7-β 消除——
+# handlers/agents.py 改从 erza.contracts.routes_agents 导入 router，
+# handlers/skills.py 改从 erza.contracts.skills 导入 SkillsLoader，
+# 不再有任何 channels 子模块 import erza.agent。空集保留为门禁。
+AGENT_IMPORT_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset()
 
 # Rule C 已声明的过渡期例外：跨包下划线私有属性访问。
-# - composition/gateway.py:99 对 erza.cli.commands._migrate_cron_store 的
-#   后期绑定(组合层复用 cli.commands 的迁移工具),见 module-boundaries.md §4。
-PRIVATE_ATTR_EXEMPTIONS = frozenset(
-    {
-        ("composition/gateway", "commands._migrate_cron_store"),
-    }
-)
+# (2026-09-18 cron 迁移归位后已清零：composition/gateway 改直引
+# erza.cron.migration.migrate_cron_store，不再经 commands 私有命名。
+# 保留空集合作为门禁——新增任何跨包私有访问都会失败。)
+PRIVATE_ATTR_EXEMPTIONS = frozenset()
+
+# Rule F 已声明的过渡期例外：channels 对 tools 实现的直引。
+# - websocket/channel.py 曾经 tools.mcp.request_mcp_reload 触发 MCP 热重载；
+# - websocket/api/mcp_presets_api.py 曾经由 tools.mcp.connect_mcp_servers
+#   连接 preset 服务器(函数级懒导入)。
+# 消除路径已兑现：组合根(GatewayApplication)→ WebUIContext → ChannelManager →
+# WebSocketChannel(mcp_reloader / mcp_connector)→ RouteDeps → handler 注入，
+# channels 不再直接 import erza.tools.mcp。空集保留为门禁。
+CHANNELS_TOOLS_EXEMPTIONS: frozenset[tuple[str, str]] = frozenset()
 
 
 def _iter_source_files() -> Iterator[Path]:
@@ -252,4 +257,24 @@ def test_no_cross_package_underscore_private_access() -> None:
         "cross-package underscore-private attribute access must be declared:\n"
         f"  unexpected: {sorted(found - PRIVATE_ATTR_EXEMPTIONS)}\n"
         f"  stale:      {sorted(PRIVATE_ATTR_EXEMPTIONS - found)}"
+    )
+
+
+def test_channels_only_depend_on_tools_facade() -> None:
+    found: set[tuple[str, str]] = set()
+    for path in _iter_source_files():
+        rel = _rel_module(path)
+        if _package_of(rel) != "channels":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+        for _, target in _import_targets(tree):
+            if target == "erza.tools" or target.startswith("erza.tools."):
+                if target == "erza.tools.registry":
+                    continue
+                found.add((rel, target))
+    assert found == CHANNELS_TOOLS_EXEMPTIONS, (
+        "channels must only depend on the tools facade (erza.tools.registry); "
+        "direct implementation imports must be declared:\n"
+        f"  unexpected: {sorted(found - CHANNELS_TOOLS_EXEMPTIONS)}\n"
+        f"  stale:      {sorted(CHANNELS_TOOLS_EXEMPTIONS - found)}"
     )

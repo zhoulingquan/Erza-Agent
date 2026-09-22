@@ -37,9 +37,7 @@ def import_tool(ctx: RouteContext) -> Response:
 
     b64_data = _collect_chunked_header(ctx.request.headers, "x-erza-Tool-Content")
     if not b64_data:
-        return _http_error(
-            400, "missing tool content (send via x-erza-Tool-Content headers)"
-        )
+        return _http_error(400, "missing tool content (send via x-erza-Tool-Content headers)")
 
     try:
         content = base64.b64decode(b64_data)

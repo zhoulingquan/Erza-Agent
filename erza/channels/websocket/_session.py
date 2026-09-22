@@ -26,6 +26,8 @@ from loguru import logger
 from erza.bus.events import OutboundMessage
 from erza.bus.queue import MessageBus
 
+from .api._settings_store import SettingsStore
+
 
 def publish_runtime_model_update(
     bus: MessageBus,
@@ -124,9 +126,7 @@ def _default_model_name_from_config() -> str | None:
     continue to take effect on the bootstrap resolver used there.
     """
     try:
-        from erza.config.loader import load_config
-
-        model = load_config().resolve_preset().model.strip()
+        model = SettingsStore().read().resolve_preset().model.strip()
         return model or None
     except Exception as e:
         logger.debug("bootstrap model_name could not load from config: {}", e)

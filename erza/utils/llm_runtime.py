@@ -1,22 +1,16 @@
-"""Small helpers for passing the active LLM provider/model together."""
+"""Re-export shim for :mod:`erza.providers.runtime`.
+
+The LLM-provider runtime accessors canonicalized in
+``erza/providers/runtime.py`` (provider domain); this module keeps old
+imports working.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from erza.providers.runtime import (
+    LLMRuntime,
+    LLMRuntimeResolver,
+    static_llm_runtime,
+)
 
-from erza.providers.base import LLMProvider
-
-
-@dataclass(frozen=True)
-class LLMRuntime:
-    provider: LLMProvider
-    model: str
-
-
-LLMRuntimeResolver = Callable[[], LLMRuntime]
-
-
-def static_llm_runtime(provider: LLMProvider, model: str) -> LLMRuntimeResolver:
-    runtime = LLMRuntime(provider=provider, model=model)
-    return lambda: runtime
+__all__ = ["LLMRuntime", "LLMRuntimeResolver", "static_llm_runtime"]

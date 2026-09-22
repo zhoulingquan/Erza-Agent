@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import os
 from collections import OrderedDict
-from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -15,7 +13,16 @@ from loguru import logger
 
 from erza.bus.events import OutboundMessage
 from erza.bus.queue import MessageBus
+from erza.channels._transcription import (
+    resolve_transcription_base,
+    resolve_transcription_key,
+)
 from erza.channels.base import BaseChannel
+from erza.channels.webui_context import (
+    _UNSET,
+    WebUIContext,
+    resolve_webui_context,
+)
 from erza.config.schema import Config
 from erza.utils.restart import (
     consume_restart_notice_from_env,
@@ -65,28 +72,62 @@ class ChannelManager:
         bus: MessageBus,
         *,
         session_manager: "SessionManager | None" = None,
-        webui_runtime_model_name: Callable[[], str | None] | None = None,
-        webui_static_dist: bool = True,
-        webui_runtime_surface: str = "browser",
-        webui_runtime_capabilities: dict[str, Any] | None = None,
-        webui_provider_loader: Callable[[], Any] | None = None,
-        webui_cron_reloader: Callable[[], None] | None = None,
-        webui_agent_model_refresher: Callable[[], None] | None = None,
-        webui_cron_service: Any = None,
-        webui_tool_registry: Any = None,
+        context: WebUIContext | None = None,
+        # 以下 webui_* 关键字参数为兼容透传(已废弃):显式传入时覆盖
+        # context 对应字段并触发 DeprecationWarning,新增调用请改用 context。
+        webui_runtime_model_name: Any = _UNSET,
+        webui_static_dist: Any = _UNSET,
+        webui_runtime_surface: Any = _UNSET,
+        webui_runtime_capabilities: Any = _UNSET,
+        webui_provider_loader: Any = _UNSET,
+        webui_cron_reloader: Any = _UNSET,
+        webui_agent_model_refresher: Any = _UNSET,
+        webui_cron_service: Any = _UNSET,
+        webui_tool_registry: Any = _UNSET,
+        webui_mcp_reloader: Any = _UNSET,
+        webui_mcp_connector: Any = _UNSET,
+        # 以下四个参数为 transcription / websocket 装配的显式注入(组合根在
+        # 持有全量 config 的组合侧取值后传入)。为 None 时回退读 config,
+        # 保持旧构造 ``ChannelManager(config, bus)`` 在测试中可用。
+        groq_api_key: str | None = None,
+        groq_api_base: str | None = None,
+        restrict_to_workspace: bool | None = None,
+        workspace_path: str | Path | None = None,
     ):
+        webui = resolve_webui_context(
+            context,
+            {
+                "webui_runtime_model_name": webui_runtime_model_name,
+                "webui_static_dist": webui_static_dist,
+                "webui_runtime_surface": webui_runtime_surface,
+                "webui_runtime_capabilities": webui_runtime_capabilities,
+                "webui_provider_loader": webui_provider_loader,
+                "webui_cron_reloader": webui_cron_reloader,
+                "webui_agent_model_refresher": webui_agent_model_refresher,
+                "webui_cron_service": webui_cron_service,
+                "webui_tool_registry": webui_tool_registry,
+                "webui_mcp_reloader": webui_mcp_reloader,
+                "webui_mcp_connector": webui_mcp_connector,
+            },
+        )
         self.config = config
         self.bus = bus
+        self._groq_api_key = groq_api_key
+        self._groq_api_base = groq_api_base
+        self._restrict_to_workspace = restrict_to_workspace
+        self._workspace_path = workspace_path
         self._session_manager = session_manager
-        self._webui_runtime_model_name = webui_runtime_model_name
-        self._webui_static_dist = webui_static_dist
-        self._webui_runtime_surface = webui_runtime_surface
-        self._webui_runtime_capabilities = dict(webui_runtime_capabilities or {})
-        self._webui_provider_loader = webui_provider_loader
-        self._webui_cron_reloader = webui_cron_reloader
-        self._webui_agent_model_refresher = webui_agent_model_refresher
-        self._webui_cron_service = webui_cron_service
-        self._webui_tool_registry = webui_tool_registry
+        self._webui_runtime_model_name = webui.runtime_model_name
+        self._webui_static_dist = webui.static_dist
+        self._webui_runtime_surface = webui.runtime_surface
+        self._webui_runtime_capabilities = dict(webui.runtime_capabilities or {})
+        self._webui_provider_loader = webui.provider_loader
+        self._webui_cron_reloader = webui.cron_reloader
+        self._webui_agent_model_refresher = webui.agent_model_refresher
+        self._webui_cron_service = webui.cron_service
+        self._webui_tool_registry = webui.tool_registry
+        self._webui_mcp_reloader = webui.mcp_reloader
+        self._webui_mcp_connector = webui.mcp_connector
         self.channels: dict[str, BaseChannel] = {}
         self._dispatch_task: asyncio.Task | None = None
         # 后台发送任务引用集: create_task 必须持引用, 否则任务可能在完成前被
@@ -107,8 +148,16 @@ class ChannelManager:
         )
 
         transcription_provider = self.config.channels.transcription_provider
-        transcription_key = self._resolve_transcription_key(transcription_provider)
-        transcription_base = self._resolve_transcription_base(transcription_provider)
+        transcription_key = resolve_transcription_key(
+            transcription_provider,
+            getattr(self, "_groq_api_key", None)
+            or self._resolve_transcription_config_value("groq", "api_key"),
+        )
+        transcription_base = resolve_transcription_base(
+            transcription_provider,
+            getattr(self, "_groq_api_base", None)
+            or self._resolve_transcription_config_value("groq", "api_base"),
+        )
         transcription_language = self.config.channels.transcription_language
 
         # Collect enabled module names first, then only import those.
@@ -156,8 +205,19 @@ class ChannelManager:
                         static_path = _default_webui_dist() if self._webui_static_dist else None
                         if static_path is not None:
                             kwargs["static_dist_path"] = static_path
-                    kwargs["workspace_path"] = self.config.workspace_path
-                    kwargs["restrict_to_workspace"] = self.config.tools.restrict_to_workspace
+                    kwargs["workspace_path"] = (
+                        getattr(self, "_workspace_path", None) or self.config.workspace_path
+                    )
+                    restrict = getattr(self, "_restrict_to_workspace", None)
+                    kwargs["restrict_to_workspace"] = (
+                        restrict
+                        if restrict is not None
+                        else getattr(
+                            getattr(self.config, "tools", None),
+                            "restrict_to_workspace",
+                            True,
+                        )
+                    )
                     if self._webui_runtime_model_name is not None:
                         kwargs["runtime_model_name"] = self._webui_runtime_model_name
                     if self._webui_provider_loader is not None:
@@ -172,6 +232,10 @@ class ChannelManager:
                         kwargs["cron_service"] = self._webui_cron_service
                     if self._webui_tool_registry is not None:
                         kwargs["tool_registry"] = self._webui_tool_registry
+                    if self._webui_mcp_reloader is not None:
+                        kwargs["mcp_reloader"] = self._webui_mcp_reloader
+                    if self._webui_mcp_connector is not None:
+                        kwargs["mcp_connector"] = self._webui_mcp_connector
                 channel = cls(section, self.bus, **kwargs)
                 channel.transcription_provider = transcription_provider
                 channel.transcription_api_key = transcription_key
@@ -199,26 +263,25 @@ class ChannelManager:
 
         self._validate_allow_from()
 
-    def _resolve_transcription_key(self, provider: str) -> str:
-        """Pick the API key for the configured transcription provider."""
-        try:
-            if provider == "openai":
-                # OpenAI Whisper transcription reads the key directly from env.
-                # (openai LLM provider 已从 ProvidersConfig 移除，不再作为字段存在。)
-                return os.environ.get("OPENAI_API_KEY", "") or ""
-            return self.config.providers.groq.api_key
-        except AttributeError:
-            return ""
+    def _resolve_transcription_config_value(self, section: str, field: str) -> str | None:
+        """Fallback read of ``config.providers.<section>.<field>`` for old callers.
 
-    def _resolve_transcription_base(self, provider: str) -> str:
-        """Pick the API base URL for the configured transcription provider."""
+        Kept only for the legacy ``ChannelManager(config, bus)`` construction:
+        the composition root now injects these values explicitly.  Defensive
+        ``getattr`` replaces the old ``try/except AttributeError`` — tests build
+        managers over partial config objects (``SimpleNamespace``) that may lack
+        the ``providers`` section or the provider entry entirely; a missing value
+        resolves to ``None`` and the ``_transcription`` helpers normalize it to
+        ``""``.
+        """
         try:
-            if provider == "openai":
-                # OpenAI Whisper 默认走官方端点；用户可设 OPENAI_API_BASE 覆盖。
-                return os.environ.get("OPENAI_API_BASE", "") or ""
-            return self.config.providers.groq.api_base or ""
+            return getattr(
+                getattr(getattr(self.config, "providers", None), section, None),
+                field,
+                None,
+            )
         except AttributeError:
-            return ""
+            return None
 
     def _validate_allow_from(self) -> None:
         for name, ch in self.channels.items():

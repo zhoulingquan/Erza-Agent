@@ -20,12 +20,12 @@ from urllib.parse import urlparse
 
 from loguru import logger
 
-from erza.config.loader import load_config, save_config
 from erza.config.schema import ModelPresetConfig
 from erza.providers.registry import PROVIDERS, find_by_name
 
 from ._query import QueryParams, _query_first, _query_first_alias
 from ._runtime import WebUISettingsError, _mask_secret_hint
+from ._settings_store import SettingsStore
 
 # === 专属常量 ===
 
@@ -371,7 +371,7 @@ def update_agent_settings(query: QueryParams) -> dict[str, Any]:
     内部按字段分段处理。planner 虽语义独立,但修改的是 agents.defaults,
     与 model 同源,保留在此避免前端多次调用。
     """
-    config = load_config()
+    config = SettingsStore().read()
     defaults = config.agents.defaults
     changed = False
     restart_required = False
@@ -434,7 +434,7 @@ def update_agent_settings(query: QueryParams) -> dict[str, Any]:
             restart_required = True
 
     if changed:
-        save_config(config)
+        SettingsStore().write(config)
     if model_changed:
         import threading
 
@@ -460,7 +460,7 @@ def create_model_configuration(query: QueryParams) -> dict[str, Any]:
         raise WebUISettingsError("provider is required")
 
     name = _model_configuration_slug(raw_name or label)
-    config = load_config()
+    config = SettingsStore().read()
     if name in config.model_presets:
         raise WebUISettingsError("configuration already exists", status=409)
 
@@ -501,7 +501,7 @@ def create_model_configuration(query: QueryParams) -> dict[str, Any]:
         api_base=api_base,
     )
     config.agents.defaults.model_preset = name
-    save_config(config)
+    SettingsStore().write(config)
     import threading
 
     threading.Thread(target=_trigger_model_learning, args=(model,), daemon=True).start()
@@ -515,7 +515,7 @@ def update_model_configuration(query: QueryParams) -> dict[str, Any]:
     if not name or name == "default":
         raise WebUISettingsError("model configuration is required")
 
-    config = load_config()
+    config = SettingsStore().read()
     preset = config.model_presets.get(name)
     if preset is None:
         raise WebUISettingsError("unknown model configuration")
@@ -577,7 +577,7 @@ def update_model_configuration(query: QueryParams) -> dict[str, Any]:
         changed = True
 
     if changed:
-        save_config(config)
+        SettingsStore().write(config)
     if model_changed:
         import threading
 
@@ -595,7 +595,7 @@ def update_provider_settings(query: QueryParams) -> dict[str, Any]:
     if spec is None:
         raise WebUISettingsError("unknown provider")
 
-    config = load_config()
+    config = SettingsStore().read()
     provider_config = getattr(config.providers, spec.name, None)
     if provider_config is None:
         raise WebUISettingsError("unknown provider")
@@ -616,7 +616,7 @@ def update_provider_settings(query: QueryParams) -> dict[str, Any]:
             changed = True
 
     if changed:
-        save_config(config)
+        SettingsStore().write(config)
     from .settings_api import settings_payload
 
     return settings_payload(requires_restart=False)
@@ -632,7 +632,7 @@ async def list_provider_models(query: QueryParams) -> dict[str, Any]:
     if spec is None:
         raise WebUISettingsError("unknown provider")
 
-    config = load_config()
+    config = SettingsStore().read()
     provider_config = getattr(config.providers, spec.name, None)
     if provider_config is None:
         raise WebUISettingsError("unknown provider")
@@ -692,7 +692,7 @@ def delete_model_configuration(query: QueryParams) -> dict[str, Any]:
     if not name or name == "default":
         raise WebUISettingsError("model configuration is required")
 
-    config = load_config()
+    config = SettingsStore().read()
     if name not in config.model_presets:
         raise WebUISettingsError("unknown model configuration")
 
@@ -708,7 +708,7 @@ def delete_model_configuration(query: QueryParams) -> dict[str, Any]:
             config.agents.defaults.model = ""
             config.agents.defaults.provider = "auto"
 
-    save_config(config)
+    SettingsStore().write(config)
     from .settings_api import settings_payload
 
     return settings_payload()
@@ -723,7 +723,7 @@ def delete_provider_settings(query: QueryParams) -> dict[str, Any]:
     if spec is None:
         raise WebUISettingsError("unknown provider")
 
-    config = load_config()
+    config = SettingsStore().read()
     provider_config = getattr(config.providers, spec.name, None)
     if provider_config is None:
         raise WebUISettingsError("unknown provider")
@@ -757,7 +757,7 @@ def delete_provider_settings(query: QueryParams) -> dict[str, Any]:
         changed = True
 
     if changed:
-        save_config(config)
+        SettingsStore().write(config)
     from .settings_api import settings_payload
 
     return settings_payload(requires_restart=False)
@@ -765,7 +765,7 @@ def delete_provider_settings(query: QueryParams) -> dict[str, Any]:
 
 def delete_all_providers(_query: QueryParams) -> dict[str, Any]:
     """一键清除所有 provider 配置,恢复初始状态。"""
-    config = load_config()
+    config = SettingsStore().read()
     changed = False
 
     for spec in PROVIDERS:
@@ -787,7 +787,7 @@ def delete_all_providers(_query: QueryParams) -> dict[str, Any]:
         changed = True
 
     if changed:
-        save_config(config)
+        SettingsStore().write(config)
     from .settings_api import settings_payload
 
     return settings_payload(requires_restart=False)
