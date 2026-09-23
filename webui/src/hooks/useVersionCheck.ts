@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 
 /**
- * updater.json 元数据结构。
+ * 版本信号源(按优先级):
+ *  1. GitHub Releases API(`releases/latest`,自动排除 draft/pre-release)——
+ *     与 QwenPaw PR #715 用 PyPI 做信号源同构,只是 Erza 未发布 PyPI 包
+ *     (`erza-ai` 在 PyPI 不存在),改用 GitHub Release 做唯一真相源。
+ *     发版(新建 Release)即触发全网客户端提示,无需改代码。
+ *  2. 同源 `/updater.json`(离线/代理环境兜底,静默失败)。
+ *
+ * updater.json 元数据结构(兜底通道)。
  * 由 GitHub Actions 发版时自动生成,托管在 public/updater.json(同源)或远程 CDN。
  * Tauri 桌面端后续接入 @tauri-apps/plugin-updater 时可复用同一份元数据。
  */
@@ -53,6 +60,69 @@ export interface UpdateInfo {
  * @param currentVersion 当前版本号(来自后端 boot.version)
  * @param updaterUrl     updater.json 的 URL,默认同源 /updater.json
  */
+/** GitHub 仓库坐标:Release 即版本信号,建 Release 即触发客户端提示。 */
+export const ERZA_GITHUB_REPO = "zhoulingquan/Erza-Agent";
+export const ERZA_GITHUB_LATEST_RELEASE_URL =
+  `https://api.github.com/${ERZA_GITHUB_REPO}/releases/latest`;
+
+type CheckedUpdate = Omit<UpdateInfo, "currentVersion" | "isTauri">;
+
+/** 主信号源:GitHub 最新正式 Release。失败返回 null,调用方走兜底。 */
+async function checkGitHubReleases(
+  currentVersion: string,
+): Promise<CheckedUpdate | null> {
+  const res = await fetch(ERZA_GITHUB_LATEST_RELEASE_URL, {
+    cache: "no-cache",
+    headers: { Accept: "application/vnd.github+json" },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as {
+    tag_name?: string;
+    body?: string;
+    html_url?: string;
+    published_at?: string;
+  };
+  const version = (data?.tag_name ?? "").trim();
+  if (!version) return null;
+  // Release 正文同时供给中英文(单语种 body,两侧都显示,保证弹窗有内容)。
+  const notes: Record<string, string> = data.body
+    ? { zh: data.body, en: data.body }
+    : {};
+  return {
+    latestVersion: version,
+    hasUpdate: semverLt(currentVersion, version),
+    requiresForceUpdate: false,
+    notes,
+    releaseUrl:
+      data.html_url ?? `https://github.com/${ERZA_GITHUB_REPO}/releases`,
+  };
+}
+
+/** 兜底信号源:同源 updater.json(离线/代理/限流环境)。 */
+async function checkUpdaterJson(
+  updaterUrl: string,
+  currentVersion: string,
+): Promise<CheckedUpdate | null> {
+  const res = await fetch(updaterUrl, {
+    cache: "no-cache",
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) return null;
+  const data: UpdaterMeta = await res.json();
+  if (!data?.version) return null;
+  return {
+    latestVersion: data.version,
+    hasUpdate: semverLt(currentVersion, data.version),
+    requiresForceUpdate: data.min_required
+      ? semverLt(currentVersion, data.min_required)
+      : false,
+    notes: data.notes ?? {},
+    releaseUrl:
+      data.release_url ??
+      `https://github.com/${ERZA_GITHUB_REPO}/releases/tag/v${data.version}`,
+  };
+}
+
 export function useVersionCheck(
   currentVersion: string | null,
   updaterUrl = "/updater.json",
@@ -68,33 +138,20 @@ export function useVersionCheck(
     const isTauri = "__TAURI_INTERNALS__" in window;
 
     // Tauri 桌面端后续接入 @tauri-apps/plugin-updater 时走原生检测
-    // 当前 Phase 1 先统一走 fetch updater.json
+    // 信号源:GitHub Releases 优先,同源 updater.json 兜底,全静默失败
     async function check() {
       try {
-        const res = await fetch(updaterUrl, {
-          cache: "no-cache",
-          headers: { Accept: "application/json" },
-        });
-        if (!res.ok) return;
-        const data: UpdaterMeta = await res.json();
-        if (cancelled || !data?.version) return;
-
-        const hasUpdate = semverLt(ver, data.version);
-        const requiresForceUpdate = data.min_required
-          ? semverLt(ver, data.min_required)
-          : false;
-
-        setInfo({
-          currentVersion: ver,
-          latestVersion: data.version,
-          hasUpdate,
-          requiresForceUpdate,
-          notes: data.notes ?? {},
-          releaseUrl:
-            data.release_url ??
-            `https://github.com/tuolaonainaiguomalu/mini-Unicorn/releases/tag/v${data.version}`,
-          isTauri,
-        });
+        const fromGitHub = await checkGitHubReleases(ver);
+        if (cancelled) return;
+        if (fromGitHub) {
+          setInfo({ ...fromGitHub, currentVersion: ver, isTauri });
+          return;
+        }
+        const fromFallback = await checkUpdaterJson(updaterUrl, ver);
+        if (cancelled) return;
+        if (fromFallback) {
+          setInfo({ ...fromFallback, currentVersion: ver, isTauri });
+        }
       } catch {
         // 静默失败:版本检查失败不应影响主功能
       }
