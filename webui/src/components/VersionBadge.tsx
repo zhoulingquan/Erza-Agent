@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, Copy, ExternalLink, RefreshCw } from "lucide-react";
+import { ArrowUp, Check, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { MarkdownText } from "@/components/MarkdownText";
@@ -56,56 +56,81 @@ export function VersionBadge({ version, updaterUrl }: VersionBadgeProps) {
     setOpen(true);
   };
 
+  // 有更新时在版本号旁再挂一个显式升级按钮(比红点更显眼),点开同一个弹窗。
+  const showUpgrade = hasUpdate || requiresForce;
+
   return (
     <>
-      <TooltipProvider delayDuration={200} skipDelayDuration={300}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={handleClick}
-              aria-label={
-                hasUpdate
-                  ? t("version.updateAvailable", {
-                      defaultValue: "发现新版本 v{{version}}",
-                      version: updateInfo?.latestVersion,
-                    })
-                  : t("version.current", {
-                      defaultValue: "当前版本 v{{version}}",
-                      version,
-                    })
-              }
-              className={cn(
-                "relative inline-flex items-center text-xs font-medium shrink-0",
-                "transition-colors duration-200",
-                hasUpdate || requiresForce
-                  ? "cursor-pointer text-primary hover:text-primary/80"
-                  : "cursor-default text-muted-foreground",
-              )}
-            >
-              <span>v{version}</span>
-              {(hasUpdate || requiresForce) && (
-                <span
-                  aria-hidden
-                  className={cn(
-                    "absolute -right-1.5 -top-1.5 h-2 w-2 rounded-full",
-                    requiresForce ? "bg-destructive" : "bg-primary",
-                    "ring-2 ring-background",
-                  )}
-                />
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            {hasUpdate || requiresForce
-              ? t("version.updateAvailable", {
-                  defaultValue: "发现新版本 v{{version}}",
-                  version: updateInfo?.latestVersion,
-                })
-              : t("version.upToDate", { defaultValue: "已是最新版本" })}
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <TooltipProvider delayDuration={200} skipDelayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleClick}
+                aria-label={
+                  hasUpdate
+                    ? t("version.updateAvailable", {
+                        defaultValue: "发现新版本 v{{version}}",
+                        version: updateInfo?.latestVersion,
+                      })
+                    : t("version.current", {
+                        defaultValue: "当前版本 v{{version}}",
+                        version,
+                      })
+                }
+                className={cn(
+                  "relative inline-flex items-center text-xs font-medium shrink-0",
+                  "transition-colors duration-200",
+                  showUpgrade
+                    ? "cursor-pointer text-primary hover:text-primary/80"
+                    : "cursor-default text-muted-foreground",
+                )}
+              >
+                <span>v{version}</span>
+                {showUpgrade && (
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute -right-1.5 -top-1.5 h-2 w-2 rounded-full",
+                      requiresForce ? "bg-destructive" : "bg-primary",
+                      "ring-2 ring-background",
+                    )}
+                  />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {showUpgrade
+                ? t("version.updateAvailable", {
+                    defaultValue: "发现新版本 v{{version}}",
+                    version: updateInfo?.latestVersion,
+                  })
+                : t("version.upToDate", { defaultValue: "已是最新版本" })}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        {showUpgrade && (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label={t("version.updateAvailable", {
+              defaultValue: "发现新版本 v{{version}}",
+              version: updateInfo?.latestVersion,
+            })}
+            className={cn(
+              "inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5",
+              "text-[11px] font-medium transition-colors",
+              requiresForce
+                ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                : "bg-primary text-primary-foreground hover:bg-primary/90",
+            )}
+          >
+            <ArrowUp className="h-3 w-3" aria-hidden />
+            {t("version.upgrade", { defaultValue: "升级" })}
+          </button>
+        )}
+      </span>
 
       <UpdateDialog
         open={open}

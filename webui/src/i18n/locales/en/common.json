@@ -659,9 +659,10 @@
     }
   },
   "version": {
-    "current": "Current version v{{version}}",
-    "updateAvailable": "New version v{{version}} available",
-    "upToDate": "Up to date",
+ "current": "Current version v{{version}}",
+ "updateAvailable": "New version v{{version}} available",
+ "upToDate": "Up to date",
+ "upgrade": "Upgrade",
     "dialog": {
       "title": "New version v{{version}} available",
       "description": "Current v{{current}}, latest v{{latest}}. Choose the upgrade command matching your deployment.",
