@@ -60,7 +60,7 @@ export function HeartbeatLlmConfig({
             variant="outline"
             className="h-auto w-[min(220px,50vw)] justify-between rounded-full border-input bg-background px-3 py-1.5 text-[12.5px] font-normal shadow-none hover:bg-accent/55 focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <span className="min-w-0 text-left leading-tight">
+            <span className="min-w-0 flex-1 text-center leading-tight">
               <span className="block truncate font-medium text-foreground">
                 {selectedPreset ? selectedPreset.label || selectedPreset.model : defaultOptionLabel}
               </span>
@@ -85,8 +85,8 @@ export function HeartbeatLlmConfig({
               !currentValue && "bg-muted/80 text-foreground focus:bg-muted",
             )}
           >
-            <span className="min-w-0">
-              <span className="block truncate font-medium">{defaultOptionLabel}</span>
+            <span className="min-w-0 flex-1 text-center">
+              <span className="block truncate text-center font-medium">{defaultOptionLabel}</span>
               <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">
                 {settings.agent.model || "—"}
               </span>
@@ -108,9 +108,9 @@ export function HeartbeatLlmConfig({
                   selected && "bg-muted/80 text-foreground focus:bg-muted",
                 )}
               >
-                <span className="min-w-0">
-                  <span className="block truncate font-medium">{preset.label || preset.name}</span>
-                  <span className="mt-0.5 block truncate text-[11.5px] text-muted-foreground">
+                <span className="min-w-0 flex-1 text-center">
+                  <span className="block truncate text-center font-medium">{preset.label || preset.name}</span>
+                  <span className="mt-0.5 block truncate text-center text-[11.5px] text-muted-foreground">
                     {preset.model}
                   </span>
                 </span>

@@ -5,6 +5,16 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -34,6 +44,9 @@ export function ContextWindowBadge({
 
   const [inputValue, setInputValue] = useState(value ? String(value) : "");
   const [saving, setSaving] = useState(false);
+  // 手动修改确认框:先弹提醒(覆盖当前值),确认后才真正保存。
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingValue, setPendingValue] = useState<number | null>(null);
 
   // 同步外部值变化(如切换模型后)
   useEffect(() => {
@@ -94,13 +107,22 @@ export function ContextWindowBadge({
   // 基础类(h-9 / justify-center / ring-offset / disabled:opacity 等)造成视觉差异。
   const showAsLearnedPill = (isLearned || isConfiguredSaved) && !inputChanged && !timeout && !saving;
 
-  const handleSave = async () => {
+  // 点保存先弹确认框,确认后才真正写入(提醒用户覆盖的是学习值/已配置值)。
+  const handleSave = () => {
     if (!isValid) return;
+    setPendingValue(numValue);
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmSave = async () => {
+    if (pendingValue === null) return;
+    setConfirmOpen(false);
     setSaving(true);
     try {
-      await onSave(numValue);
+      await onSave(pendingValue);
     } finally {
       setSaving(false);
+      setPendingValue(null);
     }
   };
 
@@ -150,6 +172,30 @@ export function ContextWindowBadge({
           {buttonLabel}
         </Button>
       )}
+      <AlertDialog open={confirmOpen} onOpenChange={(o) => (!o ? setConfirmOpen(false) : undefined)}>
+        <AlertDialogContent className="w-[min(calc(100vw-2rem),22.75rem)] gap-0 p-5 text-center">
+          <AlertDialogHeader className="items-center space-y-0 text-center">
+            <AlertDialogTitle className="text-center text-[14px] font-medium leading-5 text-foreground">
+              {t("settings.models.contextWindowManualConfirmTitle", { defaultValue: "手动设置上下文窗口？" })}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="mt-2 max-w-[17rem] text-center text-[12px] leading-4 text-muted-foreground">
+              {t("settings.models.contextWindowManualConfirmDesc", {
+                defaultValue: "将覆盖当前值（{{old}}），保存为 {{new}}。",
+                old: value ? value.toLocaleString() : "—",
+                new: pendingValue !== null ? pendingValue.toLocaleString() : "—",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-5 grid grid-cols-2 gap-2.5 space-x-0">
+            <AlertDialogCancel onClick={() => setConfirmOpen(false)}>
+              {t("settings.actions.cancel", { defaultValue: "取消" })}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmSave}>
+              {t("settings.actions.save", { defaultValue: "保存" })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

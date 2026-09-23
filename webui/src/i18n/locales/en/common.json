@@ -107,7 +107,9 @@
       "contextWindowFailed": "Lookup failed, set manually",
       "contextWindowUnknown": "Auto-query on save",
       "contextWindowValue": "{{count}} tokens",
-      "contextWindowPlaceholder": "e.g. 128000 / 128k / 1m"
+      "contextWindowPlaceholder": "e.g. 128000 / 128k / 1m",
+      "contextWindowManualConfirmTitle": "Set context window manually?",
+      "contextWindowManualConfirmDesc": "This overrides the current value ({{old}}) with {{new}}. Make sure it matches the official spec — a wrong value breaks the context budget."
     },
     "rows": {
       "theme": "Theme",

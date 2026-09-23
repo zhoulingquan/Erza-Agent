@@ -31,10 +31,13 @@ from ._settings_store import SettingsStore
 
 _MODEL_CONFIGURATION_SLUG_RE = re.compile(r"[^a-z0-9_-]+")
 
-# 允许的 context_window_tokens 取值集合。
-# 仅接受 65536（默认上下文）与 262144（扩展上下文），其他值一律拒绝，
-# 避免用户填入不合理的数值导致 agent 上下文预算错乱。
-_ALLOWED_CONTEXT_WINDOWS: frozenset[int] = frozenset({65536, 262144})
+# context_window_tokens 取值范围(闭区间)。
+# 曾用固定集合 {65536, 262144},导致线上规格更大的模型(如 agnes-3.0-flash
+# 官方 512K)无法手动保存。改为范围校验:下限 1K 拦住无意义小值,
+# 上限 10M 与 tokenizer 异常值过滤(_extract_context_from_tokenizer_config)
+# 保持一致。常用规格(64K/128K/256K/512K/1M)都在区间内。
+_MIN_CONTEXT_WINDOW_TOKENS = 1024
+_MAX_CONTEXT_WINDOW_TOKENS = 10_000_000
 
 
 # === 专属 helper ===
@@ -79,9 +82,13 @@ def _parse_context_window_tokens(value: str | None) -> int | None:
         parsed = int(value)
     except ValueError:
         raise WebUISettingsError("context_window_tokens must be an integer") from None
-    # 仅允许预设的上下文窗口取值，避免用户填入任意数值。
-    if parsed not in _ALLOWED_CONTEXT_WINDOWS:
-        raise WebUISettingsError(f"context_window_tokens must be 65536 or 262144 (got {parsed})")
+    # 范围校验:拦住无意义的小值与异常大值,其余放行(各家模型规格差异大,
+    # 如 agnes-3.0-flash 官方 512K,固定白名单装不下)。
+    if parsed < _MIN_CONTEXT_WINDOW_TOKENS or parsed > _MAX_CONTEXT_WINDOW_TOKENS:
+        raise WebUISettingsError(
+            f"context_window_tokens must be between {_MIN_CONTEXT_WINDOW_TOKENS} "
+            f"and {_MAX_CONTEXT_WINDOW_TOKENS} (got {parsed})"
+        )
     return parsed
 
 

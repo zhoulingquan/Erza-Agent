@@ -118,7 +118,23 @@ def test_update_model_configuration_accepts_context_window_options(
     assert saved.model_presets["codex"].context_window_tokens == 262144
 
 
-def test_update_context_window_rejects_unknown_values(
+def test_update_context_window_accepts_arena_sizes_like_512k(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """线上规格超过旧白名单的模型(如 agnes-3.0-flash 官方 512K)必须能手动保存。"""
+    config_path = tmp_path / "config.json"
+    save_config(Config(), config_path)
+    monkeypatch.setattr("erza.config.loader._current_config_path", config_path)
+
+    payload = update_agent_settings({"context_window_tokens": ["512000"]})
+
+    assert payload["agent"]["context_window_tokens"] == 512000
+    saved = load_config(config_path)
+    assert saved.agents.defaults.context_window_tokens == 512000
+
+
+def test_update_context_window_rejects_out_of_range_values(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -126,8 +142,12 @@ def test_update_context_window_rejects_unknown_values(
     save_config(Config(), config_path)
     monkeypatch.setattr("erza.config.loader._current_config_path", config_path)
 
-    with pytest.raises(WebUISettingsError, match="context_window_tokens must be 65536 or 262144"):
-        update_agent_settings({"context_window_tokens": ["128000"]})
+    with pytest.raises(WebUISettingsError, match="context_window_tokens must be between"):
+        update_agent_settings({"context_window_tokens": ["512"]})
+    with pytest.raises(WebUISettingsError, match="context_window_tokens must be between"):
+        update_agent_settings({"context_window_tokens": ["99999999"]})
+    with pytest.raises(WebUISettingsError, match="context_window_tokens must be an integer"):
+        update_agent_settings({"context_window_tokens": ["1m"]})
 
 
 def test_update_model_configuration_rejects_default_preset(

@@ -107,7 +107,9 @@
       "contextWindowFailed": "查询失败,需手动设置",
       "contextWindowUnknown": "保存后自动查询",
       "contextWindowValue": "{{count}} tokens",
-      "contextWindowPlaceholder": "如 128000 / 128k / 1m"
+      "contextWindowPlaceholder": "如 128000 / 128k / 1m",
+      "contextWindowManualConfirmTitle": "手动设置上下文窗口？",
+      "contextWindowManualConfirmDesc": "将覆盖当前值（{{old}}），保存为 {{new}}。请确认与官方规格一致，错误数值会导致上下文预算错乱。"
     },
     "rows": {
       "theme": "主题",
