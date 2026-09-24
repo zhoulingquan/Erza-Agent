@@ -362,14 +362,6 @@ export function ThreadViewport({
         <div ref={bottomRef} aria-hidden className="h-px" />
       </div>
 
-      <div
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b to-transparent",
-          wallpaperActive ? "from-background/40" : "from-background",
-        )}
-      />
-
       {showScrollToBottomButton && !atBottom && (
         <Button
           variant="outline"
