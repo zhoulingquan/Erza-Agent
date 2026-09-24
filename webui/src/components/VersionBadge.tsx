@@ -119,14 +119,14 @@ export function VersionBadge({ version, updaterUrl }: VersionBadgeProps) {
               version: updateInfo?.latestVersion,
             })}
             className={cn(
-              "inline-flex h-5 w-8 shrink-0 items-center justify-center rounded-full",
+              "inline-flex h-4 w-7 shrink-0 items-center justify-center rounded-full",
               "transition-colors",
               requiresForce
                 ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 : "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
-            <ArrowUp className="h-3 w-3" aria-hidden />
+            <ArrowUp className="h-2.5 w-2.5" aria-hidden />
           </button>
         )}
       </span>
