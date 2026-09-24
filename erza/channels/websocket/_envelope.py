@@ -152,7 +152,7 @@ class EnvelopeMixin:
                 connection,
                 lambda: self._webui_workspaces.scope_for_new_chat(
                     envelope,
-                    controls_available=self._is_localhost_connection(connection),
+                    controls_available=self._controls_allowed_connection(connection),
                 ),
             )
             if scope is None:
@@ -192,7 +192,7 @@ class EnvelopeMixin:
                     envelope,
                     chat_id=cid,
                     chat_running=websocket_turn_wall_started_at(cid) is not None,
-                    controls_available=self._is_localhost_connection(connection),
+                    controls_available=self._controls_allowed_connection(connection),
                 ),
                 chat_id=cid,
             )
@@ -257,7 +257,7 @@ class EnvelopeMixin:
                     envelope,
                     chat_id=cid,
                     chat_running=websocket_turn_wall_started_at(cid) is not None,
-                    controls_available=self._is_localhost_connection(connection),
+                    controls_available=self._controls_allowed_connection(connection),
                 ),
                 chat_id=cid,
             )

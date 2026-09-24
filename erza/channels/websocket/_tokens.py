@@ -15,7 +15,7 @@ import time
 from typing import Any
 
 from ._http_routes import _http_json_response, _issue_route_secret_matches
-from ._ws_upgrade import _LOCALHOSTS, _is_localhost, _normalize_config_path, _RateLimiter
+from ._ws_upgrade import _LOCALHOSTS, _is_lan_ip, _is_localhost, _normalize_config_path, _RateLimiter
 
 
 class TokenMixin:
@@ -60,6 +60,20 @@ class TokenMixin:
         """Like the module-level ``_is_localhost`` but proxy-aware."""
         ip = self._get_real_client_ip(connection)
         return ip in _LOCALHOSTS
+
+    def _controls_allowed_connection(self, connection: Any) -> bool:
+        """Return True if *connection* may use the workspace control plane.
+
+        回环连接永远允许;内网(RFC 1918)连接仅在显式配置
+        ``allow_lan_controls=true`` 时允许。公网 IP、未知对端一律拒绝。
+        截图/文件夹选择/无密钥 bootstrap 等敏感面继续走严格的
+        :meth:`_is_localhost_connection`,不受此开关影响。
+        """
+        if self._is_localhost_connection(connection):
+            return True
+        if not bool(getattr(self.config, "allow_lan_controls", False)):
+            return False
+        return _is_lan_ip(self._get_real_client_ip(connection))
 
     def _check_rate_limit(self, limiter: _RateLimiter, connection: Any, label: str) -> bool:
         """Return True if the request passes the rate limit, else log and return False."""

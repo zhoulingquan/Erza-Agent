@@ -62,7 +62,7 @@ def list_workspaces(ctx: RouteContext) -> Response:
     """返回工作区列表,本地连接可获取控制能力标记。"""
     return _http_json_response(
         ctx.deps.webui_workspaces.payload(
-            controls_available=ctx.deps.is_localhost_connection(ctx.connection)
+            controls_available=ctx.deps.controls_allowed(ctx.connection)
         )
     )
 

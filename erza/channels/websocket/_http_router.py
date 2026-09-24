@@ -68,6 +68,9 @@ class RouteDeps:
     # 鉴权与连接判断(把 channel 方法以 callable 注入,避免 handler 持有 self)
     check_api_token: "Callable[[WsRequest], bool]"
     is_localhost_connection: "Callable[[Any], bool]"
+    # 工作区控制面可用性(回环恒真;内网取决于 allow_lan_controls)。
+    # 截图/文件夹选择等敏感面继续用 is_localhost_connection,不走这里。
+    controls_allowed: "Callable[[Any], bool]"
     # Origin 校验回调:用于 POST/PUT/DELETE 等状态变更路由的 CSWSH 防护。
     # 空 Origin(非浏览器客户端)返回 True(放行),非空 Origin 严格匹配白名单。
     is_origin_allowed: "Callable[[Any], bool]"

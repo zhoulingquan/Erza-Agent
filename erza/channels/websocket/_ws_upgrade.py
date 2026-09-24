@@ -118,6 +118,10 @@ class WebSocketConfig(Base):
     - ``token_issue_secret``: If non-empty, token requests must send ``Authorization: Bearer <secret>`` or
       ``x-erza-Auth: <secret>``.
     - ``websocket_requires_token``: If True, the handshake must include a valid token (static or issued and not expired).
+    - ``allow_lan_controls``: 是否允许内网(RFC 1918)已鉴权连接使用工作区控制面
+      (主页"完全访问权限"开关、切换项目)。默认 False(仅回环可用);可信内网
+      部署可设 True。公网 IP 永远不放行;截图/文件夹选择/无密钥 bootstrap
+      仍保持纯回环,不受此开关影响。
     - ``allow_origin``: 可选,允许通过 Origin 校验的额外来源列表(例如 ``https://app.example.com``)。
       默认放行 ``http(s)://127.0.0.1:<port>`` 与 ``http(s)://localhost:<port>``(本地 WebUI 同源场景)。
       非浏览器客户端(无 Origin 头,如 curl)始终放行以保持向后兼容。配置后会与默认列表合并生效。
@@ -144,6 +148,9 @@ class WebSocketConfig(Base):
     websocket_requires_token: bool = True
     allow_from: list[str] = Field(default_factory=list)
     trusted_proxies: list[str] = Field(default_factory=list)
+    # 可信内网部署:允许 RFC 1918 内网已鉴权连接使用工作区控制面。
+    # 默认 False,行为与之前完全一致(控制面仅回环)。
+    allow_lan_controls: bool = False
     # 允许的浏览器 Origin 列表(扩展默认的 localhost 同源放行)。
     allow_origin: list[str] = Field(default_factory=list)
     # 是否接受 ?token= 查询参数鉴权(向后兼容)。False 时强制 Authorization 头,
@@ -236,6 +243,25 @@ def _is_websocket_upgrade(request: Any) -> bool:
 
 
 _LOCALHOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+# RFC 1918 内网段:allow_lan_controls 开启时,来自这些网段的已鉴权连接
+# 才允许使用工作区控制面(切换项目/完全访问)。公网 IP 即便开启也不放行。
+_LAN_NETWORKS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+
+
+def _is_lan_ip(value: str) -> bool:
+    """Return True if *value* is an IPv4 address inside the RFC 1918 ranges."""
+    import ipaddress
+
+    try:
+        ip = ipaddress.ip_address(value.strip())
+    except ValueError:
+        return False
+    if ip.version != 4:
+        return False
+    return any(
+        ip in ipaddress.ip_network(net) for net in _LAN_NETWORKS
+    )
 
 
 def _is_localhost(connection: Any) -> bool:

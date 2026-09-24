@@ -119,6 +119,7 @@ class HttpMixin:
             logger=self.logger,
             check_api_token=self._check_api_token,
             is_localhost_connection=self._is_localhost_connection,
+            controls_allowed=self._controls_allowed_connection,
             is_origin_allowed=self._is_origin_allowed,
             with_restart_state=self._with_settings_restart_state,
             refresh_agent_model=self._maybe_refresh_agent_model,

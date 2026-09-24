@@ -228,6 +228,7 @@ All fields go under `channels.websocket` in `config.json`.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `allowFrom` | list of string | `["*"]` | Allowed `client_id` values. `"*"` allows all; `[]` denies all. |
+| `allowLanControls` | bool | `false` | Trusted-LAN escape hatch: authenticated RFC 1918 clients may use the workspace control plane (project switch / full-access toggle). Public IPs are never admitted; screenshot / folder-picker / secret-less bootstrap stay localhost-only. |
 
 ### Streaming
 
