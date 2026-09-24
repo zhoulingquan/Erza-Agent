@@ -244,7 +244,9 @@ export function WorkspaceAccessMenu({
 
   return (
     <>
-      <DropdownMenu>
+      {/* modal={false}:非模态菜单不锁 body 点击,避免与确认框的锁叠加后解不开
+          (删除会话确认框同款处理,见 ChatList)。 */}
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild disabled={disabled || !onChange}>
           <Button
             type="button"

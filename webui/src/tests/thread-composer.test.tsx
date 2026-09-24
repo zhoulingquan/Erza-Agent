@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
@@ -113,8 +114,10 @@ describe("ThreadComposer", () => {
       />,
     );
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Workspace access mode" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Full Access/ }));
+    const user = userEvent.setup();
+    // 非 modal 菜单在测试里需完整指针序列才能打开并触发 onSelect
+    await user.click(screen.getByRole("button", { name: "Workspace access mode" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Full Access/ }));
 
     // 切完全访问先弹确认框,确认后才真正切换
     expect(onWorkspaceScopeChange).not.toHaveBeenCalled();
@@ -127,6 +130,11 @@ describe("ThreadComposer", () => {
         restrict_to_workspace: false,
       }),
     );
+    // 确认框关闭后 body 点击锁必须解开(菜单 modal=false,不与弹窗锁叠加)
+    await waitFor(() =>
+      expect(screen.queryByText(/开启完全访问权限|Enable full access/)).not.toBeInTheDocument(),
+    );
+    expect(document.body.style.pointerEvents).not.toBe("none");
   });
 
   it("cancelling the full-access confirm keeps current scope", async () => {
@@ -146,8 +154,9 @@ describe("ThreadComposer", () => {
       />,
     );
 
-    fireEvent.pointerDown(screen.getByRole("button", { name: "Workspace access mode" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Full Access/ }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Workspace access mode" }));
+    await user.click(await screen.findByRole("menuitem", { name: /Full Access/ }));
     fireEvent.click(await screen.findByRole("button", { name: /取消|Cancel/ }));
 
     expect(onWorkspaceScopeChange).not.toHaveBeenCalled();
