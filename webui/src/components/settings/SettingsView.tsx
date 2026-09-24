@@ -323,7 +323,7 @@ export function SettingsView({
               size="sm"
               variant="ghost"
               onClick={onBackToChat}
-              className="mb-3 gap-1.5 rounded-full text-muted-foreground hover:text-foreground"
+              className="mb-3 gap-1.5 rounded-full border border-border/60 bg-muted/40 text-foreground hover:bg-muted/70 hover:text-foreground"
               title={t("settings.backToChat")}
             >
               <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
