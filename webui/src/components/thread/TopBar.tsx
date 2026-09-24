@@ -100,17 +100,6 @@ export function TopBar({
           </div>
         ) : null}
         <div className="flex items-center -space-x-1">
-          {onToggleSidebar ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={t("sidebar.collapse")}
-              onClick={onToggleSidebar}
-              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
-          ) : null}
           {!sidebarCollapsed ? (
             <Button
               variant="ghost"
@@ -120,6 +109,17 @@ export function TopBar({
               className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground"
             >
               <Search className="h-4 w-4" />
+            </Button>
+          ) : null}
+          {onToggleSidebar ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("sidebar.collapse")}
+              onClick={onToggleSidebar}
+              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            >
+              <PanelLeft className="h-4 w-4" />
             </Button>
           ) : null}
         </div>
