@@ -87,7 +87,9 @@ export function VersionBadge({ version, updaterUrl }: VersionBadgeProps) {
                     : "cursor-default text-muted-foreground",
                 )}
               >
-                <span>v{version}</span>
+                {/* tabular-nums:数字等宽,版本号变长(如 0.7.0→11.11.11)只撑宽文字本身,
+                    两边 gap 与红点锚点不动,间距恒定 */}
+                <span className="tabular-nums">v{version}</span>
                 {showUpgrade && (
                   <span
                     aria-hidden

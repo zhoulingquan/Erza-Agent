@@ -41,6 +41,34 @@ describe("VersionBadge upgrade button", () => {
     await screen.findByText(/something new/);
   });
 
+  it.each(["0.7.0", "0.7.11", "0.11.11", "11.11.11"])(
+    "版本号 %s 下三段间距恒定",
+    async (ver) => {
+      // 远端永远更新,保证红点+升级按钮出现
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({ tag_name: "v99.0.0", body: "x" }),
+        }),
+      );
+      const { container } = renderBadge(ver);
+      await screen.findAllByRole("button", { name: /New version/ });
+
+      // 版本号→升级按钮:外层 gap-3(12px),边对边,与文字宽度无关
+      const cluster = container.querySelector("span.inline-flex.gap-3");
+      expect(cluster).not.toBeNull();
+      // 红点:绝对定位锚在版本号按钮边(-right-1.5),不随文字长度漂移
+      const dot = container.querySelector("span[aria-hidden='true'].-right-1\\.5");
+      expect(dot).not.toBeNull();
+      // 升级按钮:固定 20x26,不压缩
+      const upgradeBtn = container.querySelector("button.w-\\[26px\\]");
+      expect(upgradeBtn).not.toBeNull();
+      expect(upgradeBtn?.className).toContain("shrink-0");
+    },
+  );
+
   it("已是最新时不显示升级按钮", async () => {
     vi.stubGlobal(
       "fetch",
