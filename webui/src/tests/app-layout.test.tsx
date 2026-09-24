@@ -1021,12 +1021,16 @@ describe("App layout", () => {
     expect(screen.queryByRole("button", { name: "Start a new chat" })).not.toBeInTheDocument();
     const rail = screen.getByRole("navigation", { name: "Sidebar navigation" });
     expect(within(rail).getByRole("button", { name: "New chat" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Search chats" })).toBeInTheDocument();
+    // 折叠态顶栏跟随收缩:品牌名/版本号/搜索按钮隐藏,只剩收起按钮
+    expect(screen.queryByRole("button", { name: "Search chats" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
     expect(within(rail).queryByRole("button", { name: "View" })).not.toBeInTheDocument();
     expect(within(rail).queryByText("Existing chat")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
     await waitFor(() => expect(sidebarAside.style.width).toBe("272px"));
+    // 展开后顶栏恢复:搜索按钮回来
+    expect(screen.getByRole("button", { name: "Search chats" })).toBeInTheDocument();
 
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
     fireEvent.click(within(sidebar).getByRole("button", { name: "New chat" }));

@@ -44,6 +44,9 @@ interface TopBarProps {
   onSelectProvider?: (provider: string) => void;
   /** 侧边栏展开宽度(px),用于让左侧按钮组右边缘与侧边栏右边缘对齐。 */
   sidebarWidth?: number;
+  /** 侧边栏是否已折叠为 56px 图标栏。折叠时左侧只剩收起按钮(居中),
+   * 品牌名/版本号/搜索按钮隐藏(搜索仍可用 Cmd/Ctrl+K)。 */
+  sidebarCollapsed?: boolean;
   /** 后端版本号,显示在 logo 旁边。 */
   version?: string | null;
 }
@@ -54,7 +57,8 @@ interface TopBarProps {
  * 中间:可选标题(chat 视图传会话标题)。
  * 右侧:provider 下拉 + 语言切换 + 主题切换。
  *
- * 设计意图:点击 PanelLeft 按钮只切换侧边栏宽度,顶栏所有元素位置不变。
+ * 折叠联动:sidebarCollapsed 时左侧收缩到 56px 图标栏,只剩收起按钮,
+ * 与下方侧边栏图标栏对齐(宽度变化带 300ms 过渡,和侧边栏同节奏)。
  */
 export function TopBar({
   onToggleSidebar,
@@ -69,6 +73,7 @@ export function TopBar({
   currentProvider = null,
   onSelectProvider,
   sidebarWidth = 272,
+  sidebarCollapsed = false,
   version = null,
 }: TopBarProps) {
   const { t } = useTranslation();
@@ -76,18 +81,24 @@ export function TopBar({
 
   return (
     <header className="relative z-20 flex h-11 shrink-0 items-center justify-between border-b border-border/60 bg-background">
-      {/* 左侧:宽度=侧边栏宽度,logo 左对齐,按钮组右对齐(与侧边栏右边缘对齐)。
-       * PanelLeft + 搜索按钮用 -space-x-1 包裹,间距与右侧语言/主题按钮一致。 */}
+      {/* 左侧:宽度跟随侧边栏(展开 272px / 折叠 56px,带过渡)。
+       * 展开态:logo 左对齐,按钮组右对齐(与侧边栏右边缘对齐)。
+       * 折叠态:只剩收起按钮居中,品牌名/版本号/搜索隐藏(搜索走 Cmd/Ctrl+K)。 */}
       <div
-        className="flex shrink-0 items-center justify-between pl-3"
-        style={{ width: sidebarWidth }}
+        className={cn(
+          "flex shrink-0 items-center pl-3 transition-[width] duration-300 ease-out",
+          sidebarCollapsed ? "justify-center px-0" : "justify-between",
+        )}
+        style={{ width: sidebarCollapsed ? 56 : sidebarWidth }}
       >
-        <div className="flex min-w-0 items-baseline gap-1.5">
-          <span className="text-sm font-semibold text-foreground truncate">
-            {t("app.brand")}
-          </span>
-          <VersionBadge version={version} />
-        </div>
+        {!sidebarCollapsed ? (
+          <div className="flex min-w-0 items-baseline gap-1.5">
+            <span className="text-sm font-semibold text-foreground truncate">
+              {t("app.brand")}
+            </span>
+            <VersionBadge version={version} />
+          </div>
+        ) : null}
         <div className="flex items-center -space-x-1">
           {onToggleSidebar ? (
             <Button
@@ -100,15 +111,17 @@ export function TopBar({
               <PanelLeft className="h-4 w-4" />
             </Button>
           ) : null}
-          <Button
-            variant="ghost"
-            size="icon"
-            aria-label={t("sidebar.search")}
-            onClick={onOpenSearch}
-            className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-          >
-            <Search className="h-4 w-4" />
-          </Button>
+          {!sidebarCollapsed ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={t("sidebar.search")}
+              onClick={onOpenSearch}
+              className="h-8 w-8 rounded-full text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
       </div>
 

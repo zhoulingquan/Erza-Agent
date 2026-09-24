@@ -955,7 +955,7 @@ function Shell({
           />
         ) : (
           /* web 模式全局固定顶栏:跨整个窗口宽度,独立于 sidebar + main 的 flex 容器。
-           * 点击 PanelLeft 按钮只切换侧边栏宽度,顶栏所有元素位置不变。 */
+           * 左侧宽度跟随侧边栏折叠(展开 272px / 折叠 56px),和侧边栏同节奏过渡。 */
           <TopBar
             onToggleSidebar={toggleSidebar}
             onOpenSearch={() => setSearchOpen(true)}
@@ -971,6 +971,7 @@ function Shell({
             sidebarWidth={
               isNarrowViewport ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH
             }
+            sidebarCollapsed={!isNarrowViewport && !hostSidebarOpen}
             /* 窄视口左侧仅剩 56px,放不下品牌名+版本徽章+按钮组,隐藏版本号。 */
             version={isNarrowViewport ? null : version}
           />
