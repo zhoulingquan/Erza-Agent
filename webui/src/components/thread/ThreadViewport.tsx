@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { ThreadMessages } from "@/components/thread/ThreadMessages";
 import { ThreadNavDots } from "@/components/thread/ThreadNavDots";
 import { isAgentActivityMember } from "@/components/thread/AgentActivityCluster";
+import { useWallpaper, isGlassActive, WALLPAPER_GLASS_BLUR_PX } from "@/hooks/useWallpaper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { UIMessage } from "@/lib/types";
@@ -29,6 +30,8 @@ interface ThreadViewportProps {
   onRewind?: (userMessageIndex: number) => void;
   /** Called when the user clicks the retry button under an assistant reply. */
   onRetry?: (userMessageIndex: number) => void;
+  /** 背景图是否可见:可见时 composer 停靠区切换为毛玻璃半透明样式。 */
+  wallpaperActive?: boolean;
 }
 
 const NEAR_BOTTOM_PX = 48;
@@ -60,8 +63,12 @@ export function ThreadViewport({
   showScrollToBottomButton = true,
   onRewind,
   onRetry,
+  wallpaperActive = false,
 }: ThreadViewportProps) {
   const { t } = useTranslation();
+  const { wallpaper } = useWallpaper();
+  // 毛玻璃只在背景可见且强度 > 0 时生效(强度 0 即关闭)
+  const glassActive = wallpaperActive && isGlassActive(wallpaper);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
@@ -319,6 +326,15 @@ export function ThreadViewport({
               ref={composerDockRef}
               data-testid="thread-composer-dock"
               className="sticky bottom-0 z-10 mt-auto bg-background"
+              style={
+                glassActive
+                  ? {
+                      backgroundColor: `hsl(var(--background) / ${wallpaper.glassOpacity})`,
+                      backdropFilter: `blur(${WALLPAPER_GLASS_BLUR_PX}px)`,
+                      WebkitBackdropFilter: `blur(${WALLPAPER_GLASS_BLUR_PX}px)`,
+                    }
+                  : undefined
+              }
             >
               {hasMessages && userMessageIds.length > 1 && (
                 <ThreadNavDots
@@ -348,7 +364,10 @@ export function ThreadViewport({
 
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-background to-transparent"
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b to-transparent",
+          wallpaperActive ? "from-background/40" : "from-background",
+        )}
       />
 
       {showScrollToBottomButton && !atBottom && (

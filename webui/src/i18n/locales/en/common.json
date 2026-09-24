@@ -75,7 +75,11 @@
       "providers": "Providers",
       "mcp": "MCP",
       "advanced": "Security",
-      "apps": "Apps"
+      "apps": "Apps",
+      "skills": "Skills",
+      "tools": "Tools",
+      "agents": "Agents",
+      "channels": "Channels"
     },
     "sections": {
       "interface": "Interface",
@@ -90,7 +94,8 @@
       "webuiSafety": "Web safety",
       "apps": "Apps",
       "nativeHost": "Native host",
-      "hostSafety": "App safety"
+      "hostSafety": "App safety",
+      "wallpaper": "Wallpaper"
     },
     "models": {
       "selectModel": "Select model",
@@ -338,6 +343,26 @@
     "providers": {
       "saveProvider": "Save provider",
       "saved": "Saved"
+    },
+    "wallpaper": {
+      "image": "Background image",
+      "imageHint": "Upload a local image or paste an image URL, shown on the chat home.",
+      "empty": "None",
+      "upload": "Upload",
+      "loading": "Processing…",
+      "remove": "Remove background",
+      "urlPlaceholder": "Paste image URL…",
+      "invalidUrl": "Please enter an http(s) image URL",
+      "invalidFile": "Please choose an image file",
+      "tooLarge": "Image too large, compress it or use an image URL instead",
+      "decodeFailed": "Failed to read image, try another one",
+      "blur": "Background blur",
+      "blurHint": "Blur the background so text stays readable.",
+      "dim": "Dim overlay",
+      "dimHint": "A theme-tinted overlay; higher values improve readability.",
+      "transparency": "Opacity",
+      "transparencyHint": "Opacity of frosted panels, lower is more transparent.",
+      "reset": "Reset to defaults"
     },
     "legal": {},
     "apps": {
@@ -692,7 +717,18 @@
       "pickingFolder": "Opening folder picker…",
       "pickFolderTitle": "Select project folder",
       "pickFailed": "Could not open the folder picker.",
-      "pickUnavailable": "This machine cannot open a folder picker."
+      "pickUnavailable": "This machine cannot open a folder picker.",
+      "newFolder": "New folder…",
+      "newFolderTitle": "New folder",
+      "newFolderDescription": "Create a directory on the server and select it, no system dialog needed.",
+      "newFolderParent": "Parent directory",
+      "newFolderParentPlaceholder": "e.g. /home/user/projects",
+      "newFolderName": "Folder name",
+      "newFolderNamePlaceholder": "e.g. my-project",
+      "newFolderCancel": "Cancel",
+      "newFolderCreate": "Create",
+      "newFolderCreating": "Creating…",
+      "newFolderFailed": "Failed to create folder."
     }
   },
   "mcp": {

@@ -22,6 +22,7 @@ import {
   SettingsRow,
   SettingsSectionTitle,
 } from "../components/SettingsRow";
+import { WallpaperSettings } from "./WallpaperSettings";
 
 export function AppearanceSettings({
   themeMode,
@@ -122,6 +123,8 @@ export function AppearanceSettings({
           </SettingsRow>
         </SettingsGroup>
       </section>
+
+      <WallpaperSettings />
     </div>
   );
 }

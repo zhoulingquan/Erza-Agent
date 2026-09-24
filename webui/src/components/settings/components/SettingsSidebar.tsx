@@ -38,7 +38,7 @@ export function SettingsSidebar({
         // 折叠态:窄宽度,居中对齐图标
         collapsed
           ? "md:w-[3.5rem] md:items-center md:px-1.5"
-          : "md:w-[17rem]",
+          : "md:w-[8.5rem]",
         // 折叠态:点击空白处展开
         collapsed && onToggleSidebar ? "md:cursor-pointer" : "",
         hostChromeInset ? "pt-[4.25rem] md:pt-[4.25rem]" : "pt-4 md:pt-4",

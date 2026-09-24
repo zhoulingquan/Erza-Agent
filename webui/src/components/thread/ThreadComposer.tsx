@@ -534,6 +534,7 @@ export function ThreadComposer({
         />
       ) : null}
       <div
+        data-composer-card
         className={cn(
           "group/composer relative mx-auto flex w-full flex-col overflow-visible transition-all duration-200",
           "after:pointer-events-none after:absolute after:inset-[-1px] after:rounded-[inherit] after:border after:border-neutral-400/75 after:opacity-0 after:transition-opacity after:duration-200 focus-within:after:opacity-100 dark:after:border-neutral-500/55",

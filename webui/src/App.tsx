@@ -1,15 +1,18 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Menu, Monitor, Moon, Sun, Trash2 } from "lucide-react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Monitor, Moon, Sun, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ResourceDeleteConfirmDialog } from "@/components/ui/resource-delete-confirm-dialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { RenameChatDialog } from "@/components/RenameChatDialog";
 import { Sidebar } from "@/components/Sidebar";
 import type { SettingsSectionKey } from "@/components/settings/types";
+import { WallpaperBackground } from "@/components/thread/WallpaperBackground";
+import { useWallpaper, useWallpaperVisible, isGlassActive, WALLPAPER_GLASS_BLUR_PX } from "@/hooks/useWallpaper";
 import { SearchDialog } from "@/components/search/SearchDialog";
 import { ThreadShell, resolvedModelProvider } from "@/components/thread/ThreadShell";
 import { TopBar } from "@/components/thread/TopBar";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VIEW_REGISTRY, getSidebarNavItems, getView, type ViewRenderContext } from "@/views/registry";
 
 import { useSessions } from "@/hooks/useSessions";
@@ -166,13 +169,11 @@ function readSidebarOpen(): boolean {
 }
 
 function HostChrome({
-  onToggleSidebar,
   mode,
   onToggleTheme,
   onToggleLanguage,
   showThemeButton = true,
 }: {
-  onToggleSidebar?: () => void;
   mode: ThemeMode;
   onToggleTheme: () => void;
   onToggleLanguage: () => void;
@@ -183,20 +184,7 @@ function HostChrome({
 
   return (
     <header className="host-drag-region pointer-events-none absolute inset-x-0 top-0 z-40 flex h-11 items-start justify-between bg-transparent px-3 pt-2 text-foreground/90">
-      <div className="flex min-w-[8rem] items-center">
-        {onToggleSidebar ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t("thread.header.toggleSidebar")}
-            onClick={onToggleSidebar}
-            className="host-no-drag pointer-events-auto ml-[88px] h-8 w-8 rounded-xl text-muted-foreground hover:bg-accent/40 hover:text-foreground"
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
-        ) : null}
-      </div>
+      <div className="flex min-w-[8rem] items-center" />
       <div className="flex items-center -space-x-1">
         <Button
           type="button"
@@ -668,6 +656,16 @@ function Shell({
     }
   }, []);
 
+  // 图标栏顶部展开键分流:桌面端展开侧边栏,窄屏下开抽屉(抽屉入口原来在顶栏切换键上,
+  // 切换键搬进侧边栏后由这里承接)。
+  const expandSidebar = useCallback(() => {
+    if (isNarrowViewport) {
+      setMobileSidebarOpen(true);
+    } else {
+      openHostSidebar();
+    }
+  }, [isNarrowViewport, openHostSidebar]);
+
   const onCreateChat = useCallback(async (workspaceScope?: WorkspaceScopePayload | null) => {
     try {
       const scope = workspaceScope ?? activeWorkspaceScope;
@@ -935,7 +933,17 @@ function Shell({
     settingsSnapshot?.surface ?? settingsSnapshot?.runtime_surface ?? runtimeSurface;
   const isNativeHostSetupSurface = effectiveRuntimeSurface === "native";
   const showHostChrome = isNativeHostSetupSurface;
-  const showMainSidebar = view !== "settings";
+  // 视图弹窗化后侧边栏常驻显示,不再为 settings 等视图让位。
+  // 壁纸渲染在整行(侧边栏+主区)背后:浮动侧边栏的留白与主区共用同一张背景,
+  // 不再断开。可见性由 ThreadShell 发布;视图弹窗化后主页常驻,不再按视图门控,
+  // 打开设置等弹窗时背景保持不动。
+  const { wallpaper } = useWallpaper();
+  const chatWallpaperVisible = useWallpaperVisible();
+  const appWallpaperVisible = chatWallpaperVisible;
+  // 浮动侧边栏毛玻璃:与输入框同款强度,强度 0 即关闭,仅壁纸可见时生效。
+  const sidebarGlass = appWallpaperVisible && isGlassActive(wallpaper);
+  // 视图弹窗毛玻璃:与侧边栏同条件,保证三处质感一致。
+  const modalGlass = appWallpaperVisible && isGlassActive(wallpaper);
 
   return (
     <ThemeProvider theme={theme}>
@@ -945,9 +953,10 @@ function Shell({
           showHostChrome && "bg-sidebar",
         )}
       >
+        {/* 整列背景壁纸:顶栏 + 整行(侧边栏+主区)共用同一张,浮动元素都浮于其上 */}
+        <WallpaperBackground wallpaper={wallpaper} visible={appWallpaperVisible} />
         {showHostChrome ? (
           <HostChrome
-            onToggleSidebar={showMainSidebar ? toggleSidebar : undefined}
             mode={mode}
             onToggleTheme={toggle}
             onToggleLanguage={toggleLanguage}
@@ -955,10 +964,8 @@ function Shell({
           />
         ) : (
           /* web 模式全局固定顶栏:跨整个窗口宽度,独立于 sidebar + main 的 flex 容器。
-           * 左侧宽度跟随侧边栏折叠(展开 272px / 折叠 56px),和侧边栏同节奏过渡。 */
+           * 展开时左侧宽度跟随侧边栏(272px);折叠时 logo/版本号保留,宽度按内容自适应。 */
           <TopBar
-            onToggleSidebar={toggleSidebar}
-            onOpenSearch={() => setSearchOpen(true)}
             title={view === "chat" ? headerTitle : null}
             showTitle={view === "chat" && !!activeSession}
             theme={theme}
@@ -972,19 +979,31 @@ function Shell({
               isNarrowViewport ? SIDEBAR_RAIL_WIDTH : SIDEBAR_WIDTH
             }
             sidebarCollapsed={!isNarrowViewport && !hostSidebarOpen}
-            /* 窄视口左侧仅剩 56px,放不下品牌名+版本徽章+按钮组,隐藏版本号。 */
-            version={isNarrowViewport ? null : version}
+            /* logo/版本号/更新按钮不受折叠影响,窄视口也一并显示。 */
+            version={version}
+            glass={sidebarGlass}
+            glassOpacity={wallpaper.glassOpacity}
           />
         )}
         <div
           className={cn(
             "relative flex min-h-0 flex-1 w-full overflow-hidden",
+            sidebarGlass && "sidebar-glass",
           )}
+          style={
+            sidebarGlass
+              ? ({
+                  "--wallpaper-glass-blur": `${WALLPAPER_GLASS_BLUR_PX}px`,
+                  "--wallpaper-glass-opacity": `${wallpaper.glassOpacity}`,
+                } as CSSProperties)
+              : undefined
+          }
         >
+          {/* 整行背景:壁纸已上移至整列,此处仅保留毛玻璃变量(侧边栏用) */}
           {/* Host sidebar: in normal flow, so the thread area width stays honest.
-           * 窄视口(< lg)不再 hidden,而是常驻 56px 图标栏;完整会话列表走 Sheet 抽屉。 */}
-          {showMainSidebar ? (
-            <aside
+           * 窄视口(< lg)不再 hidden,而是常驻 56px 图标栏;完整会话列表走 Sheet 抽屉。
+           * 视图弹窗化后侧边栏常驻,不再为 settings 等视图让位。 */}
+          <aside
               className={cn(
                 "relative z-20 shrink-0 overflow-hidden",
                 "transition-[width] duration-300 ease-out",
@@ -997,30 +1016,52 @@ function Shell({
                     : SIDEBAR_RAIL_WIDTH,
               }}
             >
+              {/* 浮动式侧边栏:内层卡片留白+圆角+边框+阴影,悬浮于背景之上。
+               * aside 本体保持原宽度参与布局,过渡动画不变。
+               * 折叠态外层仅 56px,若仍 p-4 会把卡片压到 24px 导致图标全被裁掉,
+               * 因此折叠时改为 p-1.5,给 36px 图标钮留出空间。 */}
               <div
                 className={cn(
-                  "absolute inset-y-0 left-0 h-full w-full overflow-hidden bg-sidebar",
-                  !showHostChrome && "shadow-inner-right",
+                  "absolute inset-0 transition-[padding] duration-300 ease-out",
+                  (isNarrowViewport || !hostSidebarOpen) ? "p-1.5" : "p-4",
                 )}
               >
-                <Sidebar
-                  {...sidebarProps}
-                  collapsed={isNarrowViewport ? true : !hostSidebarOpen}
-                  hostChromeInset={showHostChrome}
-                  onCollapse={closeHostSidebar}
-                  onExpand={
-                    isNarrowViewport ? undefined : openHostSidebar
+                <div
+                  data-sidebar-card
+                  className={cn(
+                    "h-full w-full overflow-hidden rounded-2xl border",
+                    sidebarGlass
+                      ? "border-border/40 bg-sidebar"
+                      : "border-border/50 bg-sidebar",
+                    "shadow-[0_8px_28px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_28px_rgba(0,0,0,0.4)]",
+                  )}
+                  style={
+                    sidebarGlass
+                      ? {
+                          backgroundColor:
+                            "hsl(var(--sidebar) / var(--wallpaper-glass-opacity, 0.65))",
+                          backdropFilter: `blur(${WALLPAPER_GLASS_BLUR_PX}px) saturate(1.4)`,
+                          WebkitBackdropFilter: `blur(${WALLPAPER_GLASS_BLUR_PX}px) saturate(1.4)`,
+                        }
+                      : undefined
                   }
-                />
+                >
+                  <Sidebar
+                    {...sidebarProps}
+                    collapsed={isNarrowViewport ? true : !hostSidebarOpen}
+                    hostChromeInset={showHostChrome}
+                    transparent={sidebarGlass}
+                    onCollapse={closeHostSidebar}
+                    onExpand={expandSidebar}
+                  />
+                </div>
               </div>
             </aside>
-          ) : null}
 
-          {showMainSidebar ? (
-            <Sheet
-              open={mobileSidebarOpen}
-              onOpenChange={(open) => setMobileSidebarOpen(open)}
-            >
+          <Sheet
+            open={mobileSidebarOpen}
+            onOpenChange={(open) => setMobileSidebarOpen(open)}
+          >
               <SheetContent
                 side="left"
                 showCloseButton={false}
@@ -1036,82 +1077,99 @@ function Shell({
                 />
               </SheetContent>
             </Sheet>
-          ) : null}
 
           <main
             className={cn(
-              "relative flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-background",
+              "relative z-10 flex h-full min-w-0 flex-1 flex-col overflow-hidden",
+              // 壁纸显示时主区透明,露出整行背后同一张壁纸;否则保持实底色
+              appWallpaperVisible ? "bg-transparent" : "bg-background",
               showHostChrome &&
                 "rounded-l-[28px] shadow-[-18px_0_32px_-30px_rgb(0_0_0/0.45)] dark:shadow-[-18px_0_32px_-30px_rgb(0_0_0/0.85)]",
             )}
           >
             {/*
-              设计意图:ThreadShell 在切换到其他视图(settings/mcp/skills 等)时
-              仅通过 invisible + pointer-events-none 隐藏,而不卸载。
-              原因:ThreadShell 内部持有 WebSocket 订阅与流式状态(useErzaStream),
-              强行卸载会断开 WS 连接并丢失已渲染的消息列表/输入草稿等会话状态。
-              用户切换回 chat 视图时,状态应原地保留(这是优点而非缺陷)。
-              如需优化长会话内存占用,应在 useErzaStream 内部按 view !== "chat"
-              暂停订阅/渲染,而不是在此处卸载组件(风险高)。
+              ThreadShell 常驻挂载、不再随视图切换卸载或隐藏:
+              各视图(settings/mcp/skills 等)改走毛玻璃弹窗,聊天主页一直在底下。
+              常驻的原因不变:ThreadShell 持有 WebSocket 订阅与流式状态,
+              卸载会断开 WS 并丢失消息列表/输入草稿;弹窗关闭后状态原地保留。
             */}
-            <div
-              className={cn(
-                "absolute inset-0 flex flex-col",
-                view !== "chat" && "invisible pointer-events-none",
-              )}
-            >
-              <ThreadShell
-                session={activeSession}
-                onCreateChat={onCreateChat}
-                onTurnEnd={onTurnEnd}
-                workspaceScope={activeWorkspaceScope}
-                workspaceDefaultScope={workspaces?.default_scope ?? null}
-                workspaceControls={workspaces?.controls ?? null}
-                workspaceScopeDisabled={activeChatRunning}
-                workspaceError={workspaceError}
-                onWorkspaceScopeChange={applyWorkspaceScope}
-                settingsSnapshot={settingsSnapshot}
-                onSettingsChange={setSettingsSnapshot}
-                currentProvider={currentProvider}
-                selectedAgentId={selectedAgentId}
-                onSelectAgent={onSelectAgent}
-                onClearAgent={onClearAgent}
-                maxMessageBytes={maxMessageBytes}
-              />
-            </div>
-            {view !== "chat" && (() => {
-              const reg = getView(view);
-              if (!reg) return null;
-              const ctx: ViewRenderContext = {
-                token,
-                onBack: onBackToChat,
-                onUseAgent,
-                themeMode: mode,
-                initialSection: settingsInitialSection,
-                showSidebar: view === "settings",
-                onSetThemeMode: setMode,
-                onModelNameChange,
-                onSettingsChange: setSettingsSnapshot,
-                onRestart,
-                isRestarting,
-                hostChromeInset: showHostChrome,
-                sidebarCollapsed: !hostSidebarOpen,
-                onToggleSidebar: toggleSidebar,
-              };
-              const content = (
-                <div className="absolute inset-0 flex flex-col">
-                  <Suspense fallback={null}>
-                    {reg.render(ctx)}
-                  </Suspense>
-                </div>
-              );
-              return reg.showBoundary === false ? (
-                content
-              ) : (
-                <ErrorBoundary key={reg.key}>{content}</ErrorBoundary>
-              );
-            })()}
+            <ThreadShell
+              session={activeSession}
+              onCreateChat={onCreateChat}
+              onTurnEnd={onTurnEnd}
+              workspaceScope={activeWorkspaceScope}
+              workspaceDefaultScope={workspaces?.default_scope ?? null}
+              workspaceControls={workspaces?.controls ?? null}
+              workspaceScopeDisabled={activeChatRunning}
+              workspaceError={workspaceError}
+              onWorkspaceScopeChange={applyWorkspaceScope}
+              settingsSnapshot={settingsSnapshot}
+              onSettingsChange={setSettingsSnapshot}
+              currentProvider={currentProvider}
+              selectedAgentId={selectedAgentId}
+              onSelectAgent={onSelectAgent}
+              onClearAgent={onClearAgent}
+              maxMessageBytes={maxMessageBytes}
+            />
           </main>
+          {/* 非 chat 视图改为毛玻璃弹窗:主页常驻背后,Esc/遮罩/X/视图内返回均关闭。
+              与侧边栏、输入框共用同一套半透明 + 模糊(开关与强度跟随壁纸毛玻璃设置)。 */}
+          {view !== "chat" && (() => {
+            const reg = getView(view);
+            if (!reg) return null;
+            const ctx: ViewRenderContext = {
+              token,
+              onBack: onBackToChat,
+              onUseAgent,
+              themeMode: mode,
+              initialSection: settingsInitialSection,
+              showSidebar: view === "settings",
+              onSetThemeMode: setMode,
+              onModelNameChange,
+              onSettingsChange: setSettingsSnapshot,
+              onRestart,
+              isRestarting,
+              hostChromeInset: showHostChrome,
+              sidebarCollapsed: !hostSidebarOpen,
+              onToggleSidebar: toggleSidebar,
+            };
+            const content = (
+              <Suspense fallback={null}>
+                {reg.render(ctx)}
+              </Suspense>
+            );
+            const body = reg.showBoundary === false ? (
+              content
+            ) : (
+              <ErrorBoundary key={reg.key}>{content}</ErrorBoundary>
+            );
+            return (
+              <Dialog open onOpenChange={(open) => { if (!open) setView("chat"); }}>
+                <DialogContent
+                  className={cn(
+                    "flex h-[min(82vh,54rem)] w-[min(60rem,calc(100vw-2rem))] max-w-none flex-col gap-0 overflow-hidden rounded-[24px] border-border/50 p-0 shadow-2xl",
+                    modalGlass ? "bg-transparent" : "bg-background",
+                  )}
+                  style={
+                    modalGlass
+                      ? {
+                          backgroundColor: `hsl(var(--background) / ${wallpaper.glassOpacity})`,
+                          backdropFilter: `blur(${WALLPAPER_GLASS_BLUR_PX}px) saturate(1.4)`,
+                          WebkitBackdropFilter: `blur(${WALLPAPER_GLASS_BLUR_PX}px) saturate(1.4)`,
+                        }
+                      : undefined
+                  }
+                >
+                  <DialogTitle className="sr-only">
+                    {t(reg.labelKey, { defaultValue: reg.key })}
+                  </DialogTitle>
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    {body}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            );
+          })()}
         </div>
 
         <ResourceDeleteConfirmDialog

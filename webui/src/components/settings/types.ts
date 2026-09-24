@@ -5,9 +5,14 @@ import type { Dispatch, SetStateAction } from "react";
 
 import {
   Activity,
+  MessageSquare,
+  Package,
   Palette,
+  PlugZap,
   ShieldCheck,
   SlidersHorizontal,
+  Sparkles,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,7 +29,12 @@ export type SettingsSectionKey =
   | "overview"
   | "appearance"
   | "models"
-  | "advanced";
+  | "advanced"
+  | "skills"
+  | "tools"
+  | "agents"
+  | "mcp"
+  | "channels";
 
 export type LocalDensity = "comfortable" | "compact";
 export type LocalActivityMode = "auto" | "expanded";
@@ -93,6 +103,8 @@ export interface SettingsViewProps {
   onBackToChat: () => void;
   onModelNameChange: (modelName: string | null) => void;
   onSettingsChange?: (payload: SettingsPayload) => void;
+  /** Agents 分区"使用"按钮:选中子代理并回到聊天(关闭弹窗)。 */
+  onUseAgent?: (agentId: string) => void;
   onLogout?: () => void;
   onRestart?: () => void;
   isRestarting?: boolean;
@@ -133,6 +145,12 @@ export const SETTINGS_NAV_ITEMS: Array<{
   { key: "appearance", icon: Palette, fallback: "Appearance" },
   { key: "models", icon: SlidersHorizontal, fallback: "Models" },
   { key: "advanced", icon: ShieldCheck, fallback: "Security" },
+  // 资源页并入设置弹窗:复用各自原有视图,侧边栏直接导航。
+  { key: "skills", icon: Sparkles, fallback: "Skills" },
+  { key: "tools", icon: Package, fallback: "Tools" },
+  { key: "agents", icon: Users, fallback: "Agents" },
+  { key: "mcp", icon: PlugZap, fallback: "MCP" },
+  { key: "channels", icon: MessageSquare, fallback: "Channels" },
 ];
 
 export function readLocalPreferences(): LocalPreferences {
@@ -215,6 +233,19 @@ export function freqValueToCron(value: DreamFreqValue): string | null {
 
 export function titleForSection(section: SettingsSectionKey): string {
   return SETTINGS_NAV_ITEMS.find((item) => item.key === section)?.fallback ?? "Settings";
+}
+
+/** 并入设置弹窗的资源分区:渲染各自原有视图,不走 settings header/loading 框架。 */
+const RESOURCE_SECTION_KEYS: ReadonlySet<string> = new Set([
+  "skills",
+  "tools",
+  "agents",
+  "mcp",
+  "channels",
+]);
+
+export function isResourceSection(section: SettingsSectionKey): boolean {
+  return RESOURCE_SECTION_KEYS.has(section);
 }
 
 export function orderUnconfiguredProviders(

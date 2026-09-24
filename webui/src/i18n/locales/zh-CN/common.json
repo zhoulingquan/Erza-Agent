@@ -75,7 +75,11 @@
       "providers": "提供商",
       "mcp": "MCP",
       "advanced": "安全",
-      "apps": "应用"
+      "apps": "应用",
+      "skills": "技能",
+      "tools": "工具",
+      "agents": "子代理",
+      "channels": "频道"
     },
     "sections": {
       "interface": "界面",
@@ -90,7 +94,8 @@
       "webuiSafety": "网页端安全",
       "apps": "应用",
       "nativeHost": "App",
-      "hostSafety": "App 安全"
+      "hostSafety": "App 安全",
+      "wallpaper": "主页背景"
     },
     "models": {
       "selectModel": "选择模型",
@@ -338,6 +343,26 @@
     "providers": {
       "saveProvider": "保存服务商",
       "saved": "已保存"
+    },
+    "wallpaper": {
+      "image": "背景图片",
+      "imageHint": "上传本地图片或粘贴图片链接,显示在聊天主页。",
+      "empty": "无",
+      "upload": "上传",
+      "loading": "处理中…",
+      "remove": "移除背景",
+      "urlPlaceholder": "粘贴图片链接…",
+      "invalidUrl": "请填写 http(s) 图片链接",
+      "invalidFile": "请选择图片文件",
+      "tooLarge": "图片太大,建议压缩后重试或使用图片链接",
+      "decodeFailed": "图片读取失败,请换一张试试",
+      "blur": "背景模糊",
+      "blurHint": "模糊背景图,让文字更易读。",
+      "dim": "遮罩浓度",
+      "dimHint": "在背景上加一层主题色遮罩,数值越大文字越清晰。",
+      "transparency": "透明度",
+      "transparencyHint": "毛玻璃面板的不透明度,越小越透明。",
+      "reset": "恢复默认"
     },
     "legal": {},
     "apps": {
@@ -692,7 +717,18 @@
       "pickingFolder": "正在打开文件夹选择器…",
       "pickFolderTitle": "选择项目文件夹",
       "pickFailed": "无法打开文件夹选择器。",
-      "pickUnavailable": "本机无法弹出文件夹选择器。"
+      "pickUnavailable": "本机无法弹出文件夹选择器。",
+      "newFolder": "新建文件夹…",
+      "newFolderTitle": "新建文件夹",
+      "newFolderDescription": "在服务器上直接创建目录并选中,无需系统弹窗。",
+      "newFolderParent": "上级目录",
+      "newFolderParentPlaceholder": "如 /home/user/projects",
+      "newFolderName": "文件夹名称",
+      "newFolderNamePlaceholder": "如 my-project",
+      "newFolderCancel": "取消",
+      "newFolderCreate": "创建",
+      "newFolderCreating": "创建中…",
+      "newFolderFailed": "创建文件夹失败。"
     }
   },
   "mcp": {

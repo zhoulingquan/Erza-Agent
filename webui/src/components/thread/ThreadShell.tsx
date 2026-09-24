@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ThreadComposer } from "@/components/thread/ThreadComposer";
 import { StreamErrorNotice } from "@/components/thread/StreamErrorNotice";
 import { ThreadViewport } from "@/components/thread/ThreadViewport";
+import { isGlassActive, setWallpaperVisible, useWallpaper, WALLPAPER_GLASS_BLUR_PX } from "@/hooks/useWallpaper";
 import { useErzaStream, type SendImage, type SendOptions } from "@/hooks/useErzaStream";
 import { useSessionHistory } from "@/hooks/useSessions";
 import { fetchAgents, fetchScreenshot, listSlashCommands, rewindSession, updateSettings, fetchSkills } from "@/lib/api";
@@ -292,6 +293,13 @@ export function ThreadShell({
     null;
 
   const showHeroComposer = messages.length === 0 && !loading;
+  const { wallpaper, hasImage } = useWallpaper();
+  // 背景显示规则:有图就一直显示(视图弹窗化后主页常驻背后,不再区分空态/会话)。
+  // 实际渲染在 App 整行背后(见 useWallpaperVisible),此处只发布可见性 + 驱动毛玻璃。
+  const wallpaperVisible = hasImage;
+  useEffect(() => {
+    setWallpaperVisible(wallpaperVisible);
+  }, [wallpaperVisible]);
   const wasShowingHeroComposerRef = useRef(showHeroComposer);
   const modelBadge = useMemo(
     () => toModelBadgeInfo(modelName, settings),
@@ -710,27 +718,52 @@ export function ThreadShell({
     </div>
   ) : (
     <div className="flex w-full flex-col items-center text-center animate-in fade-in-0 slide-in-from-bottom-2 duration-500">
-      <h1 className="text-balance text-[40px] font-normal leading-tight tracking-[-0.045em] text-foreground sm:text-[48px]">
+      <h1
+        className={
+          wallpaperVisible
+            ? "text-balance text-[40px] font-normal leading-tight tracking-[-0.045em] text-foreground drop-shadow-[0_2px_18px_rgb(0_0_0/0.25)] sm:text-[48px]"
+            : "text-balance text-[40px] font-normal leading-tight tracking-[-0.045em] text-foreground sm:text-[48px]"
+        }
+      >
         {t(heroGreetingKey)}
       </h1>
     </div>
   );
 
+  const glassActive = wallpaperVisible && isGlassActive(wallpaper);
+
   return (
-    <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+    <section
+      className={
+        glassActive
+          ? "wallpaper-glass relative flex min-h-0 flex-1 flex-col overflow-hidden"
+          : "relative flex min-h-0 flex-1 flex-col overflow-hidden"
+      }
+      style={
+        glassActive
+          ? ({
+              "--wallpaper-glass-blur": `${WALLPAPER_GLASS_BLUR_PX}px`,
+              "--wallpaper-glass-opacity": `${wallpaper.glassOpacity}`,
+            } as CSSProperties)
+          : undefined
+      }
+    >
       {/* ThreadHeader 已移除:logo + PanelLeft + provider 下拉 + 语言/主题
        * 统一移至 App.tsx 的全局 TopBar,跨整个窗口宽度固定显示。 */}
-      <ThreadViewport
-        messages={displayMessages}
-        isStreaming={isStreaming}
-        emptyState={emptyState}
-        composer={composer}
-        scrollToBottomSignal={scrollToBottomSignal}
-        conversationKey={historyKey}
-        showScrollToBottomButton={!!session}
-        onRewind={session ? handleRewind : undefined}
-        onRetry={session ? handleRetry : undefined}
-      />
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+        <ThreadViewport
+          messages={displayMessages}
+          isStreaming={isStreaming}
+          emptyState={emptyState}
+          composer={composer}
+          scrollToBottomSignal={scrollToBottomSignal}
+          conversationKey={historyKey}
+          showScrollToBottomButton={!!session}
+          onRewind={session ? handleRewind : undefined}
+          onRetry={session ? handleRetry : undefined}
+          wallpaperActive={wallpaperVisible}
+        />
+      </div>
     </section>
   );
 }

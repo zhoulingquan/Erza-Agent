@@ -20,12 +20,10 @@ function leftPane(container: HTMLElement): HTMLElement | null {
 }
 
 describe("TopBar sidebar collapse", () => {
-  it("展开态显示品牌名/版本号/搜索,左侧 272px", () => {
+  it("展开态显示品牌名/版本号,左侧 272px(切换键已移至侧边栏内部)", () => {
     stubVersionCheck();
     const { container } = render(
       <TopBar
-        onToggleSidebar={() => {}}
-        onOpenSearch={() => {}}
         theme="light"
         onToggleTheme={() => {}}
         onToggleLanguage={() => {}}
@@ -38,21 +36,19 @@ describe("TopBar sidebar collapse", () => {
     // 品牌名与版本号
     expect(container.textContent).toMatch(/Erza/);
     expect(screen.getByText("v0.7.0")).toBeInTheDocument();
-    // 收起 + 搜索按钮都在
+    // 切换键已搬进侧边栏,顶栏不再渲染收起/搜索按钮
     expect(
-      screen.getByRole("button", { name: /收起侧边栏|Collapse sidebar/ }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /收起侧边栏|Collapse sidebar/ }),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /搜索会话|Search chats/ }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /搜索会话|Search chats/ }),
+    ).not.toBeInTheDocument();
   });
 
-  it("折叠态只剩收起按钮,左侧 56px", () => {
+  it("折叠态仍显示品牌名/版本号,左侧不收成 56px", () => {
     stubVersionCheck();
     const { container } = render(
       <TopBar
-        onToggleSidebar={() => {}}
-        onOpenSearch={() => {}}
         theme="light"
         onToggleTheme={() => {}}
         onToggleLanguage={() => {}}
@@ -61,16 +57,16 @@ describe("TopBar sidebar collapse", () => {
         version="0.7.0"
       />,
     );
-    expect(leftPane(container)?.style.width).toBe("56px");
-    // 品牌名/版本号/搜索隐藏
-    expect(container.textContent).not.toMatch(/Erza/);
-    expect(screen.queryByText("v0.7.0")).not.toBeInTheDocument();
+    // 折叠后不再锁定 56px:logo/版本号/更新按钮保留,宽度按内容自适应
+    expect(leftPane(container)?.style.width).not.toBe("56px");
+    expect(container.textContent).toMatch(/Erza/);
+    expect(screen.getByText("v0.7.0")).toBeInTheDocument();
+    // 切换键/搜索键在侧边栏内部,不在顶栏
     expect(
       screen.queryByRole("button", { name: /搜索会话|Search chats/ }),
     ).not.toBeInTheDocument();
-    // 收起按钮(展开回去的入口)仍在
     expect(
-      screen.getByRole("button", { name: /收起侧边栏|Collapse sidebar/ }),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /收起侧边栏|Collapse sidebar/ }),
+    ).not.toBeInTheDocument();
   });
 });

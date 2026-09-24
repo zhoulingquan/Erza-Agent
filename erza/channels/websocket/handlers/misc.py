@@ -11,7 +11,12 @@ from pathlib import Path
 
 from websockets.http11 import Response
 
-from erza.channels.websocket.api.folder_picker import FolderPickerError, pick_workspace_folder
+from erza.channels.websocket.api.folder_picker import (
+    FolderCreateError,
+    FolderPickerError,
+    create_project_folder,
+    pick_workspace_folder,
+)
 from erza.channels.websocket.api.sidebar_state import (
     read_webui_sidebar_state,
     write_webui_sidebar_state,
@@ -91,6 +96,27 @@ async def pick_project_folder(ctx: RouteContext) -> Response:
     if not folder.is_absolute():
         return _http_error(500, "picker returned a non-absolute path")
     return _http_json_response({"picked": True, "path": str(folder)})
+
+
+@router.route("/api/workspaces/mkdir", methods={"POST"})
+@require_auth
+def create_project_folder_route(ctx: RouteContext) -> Response:
+    """在宿主机新建项目文件夹并返回其绝对路径(与 pick 同 localhost-only 门控)。
+
+    供 WebUI 主页"选择项目"下拉菜单的"新建文件夹"对话框调用:无头服务器
+    弹不出系统原生对话框时,用户仍可直接建目录并选中。目录名仅允许单层,
+    防止路径穿越;父目录必须已存在。
+    """
+    if not ctx.deps.is_localhost_connection(ctx.connection):
+        return forbidden("folder creation is localhost-only")
+    try:
+        path = create_project_folder(
+            _query_first(ctx.query, "parent"),
+            _query_first(ctx.query, "name"),
+        )
+    except FolderCreateError as e:
+        return _http_error(e.status, e.message)
+    return _http_json_response({"picked": True, "path": path})
 
 
 @router.route("/api/webui/sidebar-state", methods={"GET"})

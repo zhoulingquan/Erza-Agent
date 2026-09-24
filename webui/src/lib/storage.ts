@@ -31,6 +31,8 @@ export const STORAGE_KEYS = {
   slashCommandRecents: "erza.webui.slashCommandRecents",
   /** Debug flag for the WebSocket client. */
   debugWs: "erza_debug_ws",
+  /** Chat homepage wallpaper (background image + blur/dim/glass), browser-only. */
+  wallpaper: "erza-webui.wallpaper.v1",
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

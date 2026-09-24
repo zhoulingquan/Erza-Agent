@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from "react";
 import {
   Archive,
-  PanelLeft,
+  ChevronLeft,
+  ChevronRight,
+  Search,
   Settings,
   SquarePen,
 } from "lucide-react";
@@ -54,6 +56,8 @@ interface SidebarProps {
   archivedCount?: number;
   defaultWorkspacePath?: string | null;
   hostChromeInset?: boolean;
+  /** 外层浮动卡片已提供半透明毛玻璃底时,根节点用透明底避免遮挡。 */
+  transparent?: boolean;
 }
 
 export function Sidebar(props: SidebarProps) {
@@ -67,7 +71,8 @@ export function Sidebar(props: SidebarProps) {
       ref={props.containActionMenus ? setMenuPortalContainer : undefined}
       aria-label={t("sidebar.navigation")}
       className={cn(
-        "flex h-full w-full min-w-0 flex-col bg-sidebar text-sidebar-foreground",
+        "flex h-full w-full min-w-0 flex-col text-sidebar-foreground",
+        props.transparent ? "bg-transparent" : "bg-sidebar",
         !props.hostChromeInset && "border-r border-sidebar-border/60",
       )}
     >
@@ -80,6 +85,15 @@ export function Sidebar(props: SidebarProps) {
             collapsed && "justify-center",
           )}
         >
+          {/* 展开态:收起按钮放品牌区最左侧(方向图标),样式与折叠态展开按钮保持一致 */}
+          {!collapsed ? (
+            <SidebarActionButton
+              collapsed
+              label={t("sidebar.collapse")}
+              onClick={props.onCollapse}
+              icon={<ChevronLeft className="h-4 w-4" />}
+            />
+          ) : null}
           {!collapsed && (
             <span className="text-sm font-semibold text-sidebar-foreground truncate">
               {t("app.brand")}
@@ -88,39 +102,48 @@ export function Sidebar(props: SidebarProps) {
           {collapsed && (
             <span className="text-base font-bold text-sidebar-foreground">M</span>
           )}
-          {/* 展开态:收起按钮放品牌区右侧,样式与折叠态展开按钮保持一致 */}
-          {!collapsed ? (
-            <SidebarActionButton
-              collapsed
-              label={t("sidebar.collapse")}
-              onClick={props.onCollapse}
-              icon={<PanelLeft className="h-4 w-4" />}
-              className="ml-auto"
-            />
-          ) : null}
         </div>
       ) : null}
       <div
         className={cn(
           "space-y-1.5 px-2",
           props.hostChromeInset ? "pt-[2.85rem]" : "pt-3",
-          collapsed && "flex w-14 flex-col items-center px-0",
+          collapsed && "flex w-full flex-col items-center px-0",
         )}
       >
-        {/* 折叠态展开按钮:仅 native host 模式渲染(web 模式下 PanelLeft 按钮在 TopBar 始终可见) */}
-        {collapsed && props.onExpand && props.hostChromeInset ? (
-          <SidebarActionButton
-            collapsed
-            label={t("sidebar.expand")}
-            onClick={props.onExpand}
-            icon={<PanelLeft className="h-4 w-4" />}
-          />
+        {/* 收起键在侧边栏内部最上面左侧(方向图标);折叠态顶部为展开键(窄屏点它开抽屉)。 */}
+        {!props.hostChromeInset && !collapsed ? (
+          <div className="flex items-center px-1">
+            <SidebarActionButton
+              collapsed
+              label={t("sidebar.collapse")}
+              onClick={props.onCollapse}
+              icon={<ChevronLeft className="h-4 w-4" />}
+            />
+          </div>
+        ) : null}
+        {/* 折叠态展开按钮:全模式渲染(窄屏下点击开抽屉,由外部 onExpand 分流)。 */}
+        {collapsed && props.onExpand ? (
+          <div className="flex items-center justify-center">
+            <SidebarActionButton
+              collapsed
+              label={t("sidebar.expand")}
+              onClick={props.onExpand}
+              icon={<ChevronRight className="h-4 w-4" />}
+            />
+          </div>
         ) : null}
         <SidebarActionButton
           collapsed={collapsed}
           label={t("sidebar.newChat")}
           onClick={props.onNewChat}
           icon={<SquarePen className="h-4 w-4" />}
+        />
+        <SidebarActionButton
+          collapsed={collapsed}
+          label={t("sidebar.search")}
+          onClick={props.onOpenSearch}
+          icon={<Search className="h-4 w-4" />}
         />
         {/* 声明式视图导航按钮：由 VIEW_REGISTRY 驱动，新增视图只需在 registry 加一项 */}
         {props.navItems.map((item) => {
@@ -187,7 +210,7 @@ export function Sidebar(props: SidebarProps) {
       <div
         className={cn(
           "flex items-center gap-1 px-2.5 py-2.5 text-xs",
-          collapsed && "w-14 flex-col px-0",
+          collapsed && "w-full flex-col px-0",
         )}
       >
         <SidebarActionButton

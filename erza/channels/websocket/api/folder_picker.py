@@ -14,6 +14,7 @@ WebUI 与网关同机运行时(本地部署的默认形态),"浏览文件夹"按
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 
 # tkinter 非线程安全且同一时刻只应有一个对话框;并发请求直接报"忙碌",
 # 避免两个系统对话框叠在一起让用户点错。
@@ -25,6 +26,53 @@ _MAX_TITLE_CHARS = 120
 
 class FolderPickerError(RuntimeError):
     """弹窗不可用(无 tkinter / 无显示环境 / 对话框已打开)。"""
+
+
+class FolderCreateError(ValueError):
+    """新建文件夹失败,附带面向前端的 HTTP 状态码。"""
+
+    def __init__(self, message: str, *, status: int = 400) -> None:
+        super().__init__(message)
+        self.message = message
+        self.status = status
+
+
+def create_project_folder(parent: str | None, name: str | None) -> str:
+    """在宿主机 ``parent`` 目录下新建名为 ``name`` 的文件夹,返回绝对路径。
+
+    与系统弹窗无关,无头服务器也可调用:专供 WebUI"新建文件夹"对话框,
+    是 :func:`pick_workspace_folder` 在弹不出对话框时的替代通路。
+    目录名仅允许单层,防止路径穿越;父目录必须已存在(不自动建多级)。
+    """
+    raw_parent = (parent or "").strip()
+    raw_name = (name or "").strip()
+    if not raw_parent:
+        raise FolderCreateError("missing parent directory", status=400)
+    if not raw_name or raw_name in {".", ".."}:
+        raise FolderCreateError("missing folder name", status=400)
+    if "/" in raw_name or "\\" in raw_name or "\x00" in raw_name:
+        raise FolderCreateError(
+            "folder name must be a single directory name", status=400
+        )
+    base = Path(raw_parent).expanduser()
+    if not base.is_absolute():
+        raise FolderCreateError(
+            "parent directory must be an absolute path", status=400
+        )
+    if not base.is_dir():
+        raise FolderCreateError("parent directory does not exist", status=400)
+    target = base / raw_name
+    try:
+        target.mkdir(parents=False, exist_ok=False)
+    except FileExistsError as exc:
+        raise FolderCreateError("folder already exists", status=409) from exc
+    except PermissionError as exc:
+        raise FolderCreateError("permission denied", status=403) from exc
+    except OSError as exc:
+        raise FolderCreateError(
+            str(exc) or "failed to create folder", status=500
+        ) from exc
+    return str(target)
 
 
 def pick_workspace_folder(

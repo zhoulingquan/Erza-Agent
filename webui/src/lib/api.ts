@@ -217,6 +217,23 @@ export async function fetchWorkspaces(
   return request<WorkspacesPayload>(`${base}/api/workspaces`, token);
 }
 
+/** 在宿主机新建项目文件夹(无头服务器弹不出系统对话框时的替代通路)。 */
+export async function createWorkspaceFolder(
+  token: string,
+  parent: string,
+  name: string,
+  base: string = "",
+): Promise<{ picked: boolean; path: string | null }> {
+  const query = new URLSearchParams();
+  query.set("parent", parent);
+  query.set("name", name);
+  return request<{ picked: boolean; path: string | null }>(
+    `${base}/api/workspaces/mkdir?${query.toString()}`,
+    token,
+    { method: "POST" },
+  );
+}
+
 /** 让后端在宿主机弹出原生目录选择框(仅本地连接可用);取消时 path 为 null。 */
 export async function pickWorkspaceFolder(
   token: string,

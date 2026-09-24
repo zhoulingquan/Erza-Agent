@@ -7,7 +7,8 @@
 //  - 删除 provider 确认 Dialog 留在此处(与主状态强耦合)
 //  - 重新导出 SettingsSectionKey,保证外部 import 路径不变
 
-import { ChevronLeft, Loader2, RotateCcw } from "lucide-react";
+import { Loader2, RotateCcw } from "lucide-react";
+import { lazy } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useClient } from "@/providers/ClientProvider";
 
 import {
+  isResourceSection,
   titleForSection,
   type SettingsSectionKey,
   type SettingsViewProps,
@@ -37,6 +39,15 @@ import { AdvancedSettings } from "./sections/AdvancedSettings";
 import { NewModelConfigurationDialog } from "./sections/NewModelConfigurationDialog";
 import { useSettingsState } from "./hooks/useSettingsState";
 
+// 并入设置弹窗的资源视图:与 VIEW_REGISTRY 复用同一组件(顶层 lazy,只加载一次)。
+// 注意与 registry.tsx 中的 LazyXxxView 是两个独立 lazy,模块级去重由打包器完成,
+// 运行时各只实例化一次即可;Suspense 边界由 App 弹窗层统一提供。
+const LazySkillsView = lazy(() => import("@/components/skills/SkillsView").then(m => ({ default: m.SkillsView })));
+const LazyToolsView = lazy(() => import("@/components/tools/ToolsView").then(m => ({ default: m.ToolsView })));
+const LazyAgentsView = lazy(() => import("@/components/agents/AgentsView").then(m => ({ default: m.AgentsView })));
+const LazyMcpView = lazy(() => import("@/components/mcp/McpView").then(m => ({ default: m.McpView })));
+const LazyChannelsView = lazy(() => import("@/components/channels/ChannelsView").then(m => ({ default: m.ChannelsView })));
+
 // 重新导出共享类型,保证外部 `import { SettingsSectionKey } from "@/components/settings/SettingsView"` 仍可用。
 export type { SettingsSectionKey };
 
@@ -45,9 +56,11 @@ export function SettingsView({
   initialSection = "overview",
   showSidebar = true,
   onSetThemeMode,
+  // 页内返回按钮已移除(onBackToChat 仅转传给内嵌资源视图的 onBack,实际不再渲染按钮)。
   onBackToChat,
   onModelNameChange,
   onSettingsChange,
+  onUseAgent,
   onLogout,
   onRestart,
   isRestarting = false,
@@ -66,6 +79,21 @@ export function SettingsView({
   });
 
   const renderSection = () => {
+    // 资源分区不依赖后端 settings,直接渲染各自原有视图。
+    switch (state.activeSection) {
+      case "skills":
+        return <LazySkillsView onBack={onBackToChat} token={token} />;
+      case "tools":
+        return <LazyToolsView onBack={onBackToChat} token={token} />;
+      case "agents":
+        return <LazyAgentsView onBack={onBackToChat} token={token} onUseAgent={onUseAgent} />;
+      case "mcp":
+        return <LazyMcpView onBack={onBackToChat} token={token} />;
+      case "channels":
+        return <LazyChannelsView onBack={onBackToChat} token={token} />;
+      default:
+        break;
+    }
     if (!state.settings) return null;
     switch (state.activeSection) {
       case "overview":
@@ -173,7 +201,7 @@ export function SettingsView({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[radial-gradient(circle_at_50%_0%,hsl(var(--muted))_0%,hsl(var(--background))_42%)] md:flex-row">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent md:flex-row">
       {showSidebar ? (
         <SettingsSidebar
           activeSection={state.activeSection}
@@ -311,7 +339,12 @@ export function SettingsView({
         </DialogContent>
       </Dialog>
 
-      <main className="min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+      <main className="min-w-0 flex-1 overflow-y-auto scrollbar-none">
+        {isResourceSection(state.activeSection) ? (
+          <div className="flex min-h-full flex-col">
+            {renderSection()}
+          </div>
+        ) : (
         <div
           className={cn(
             "mx-auto w-full max-w-[920px] px-5 py-8 sm:px-8 lg:py-12",
@@ -319,16 +352,6 @@ export function SettingsView({
           )}
         >
           <div className="mb-7">
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onBackToChat}
-              className="mb-3 gap-1.5 rounded-full border border-border/50 bg-card/75 text-foreground hover:bg-card hover:text-foreground"
-              title={t("settings.backToChat")}
-            >
-              <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-              {t("settings.backToChat")}
-            </Button>
             <div className="flex items-end justify-between gap-3">
               <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-foreground sm:text-[34px]">
                 {state.text(`settings.nav.${state.activeSection}`, titleForSection(state.activeSection))}
@@ -382,6 +405,7 @@ export function SettingsView({
             </div>
           ) : null}
         </div>
+        )}
       </main>
     </div>
   );

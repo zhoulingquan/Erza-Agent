@@ -267,10 +267,10 @@ describe("App layout", () => {
     render(<App />);
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
-    // 窄视口左侧只有 56px 图标栏,品牌区放不下版本徽章,必须隐藏
-    // (否则徽章与 PanelLeft/搜索按钮重叠)。
-    expect(screen.queryByText("v0.6.0")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    // logo/版本号不受侧边栏折叠/窄视口影响,顶栏始终显示
+    expect(screen.getByText("v0.6.0")).toBeInTheDocument();
+    // 窄屏下图标栏顶部即抽屉入口(切换键已搬进侧边栏,窄屏点它开抽屉)。
+    fireEvent.click(screen.getByRole("button", { name: "Expand sidebar" }));
 
     const sheet = await screen.findByRole("dialog");
     const mobileSidebar = within(sheet).getByRole("navigation", {
@@ -650,14 +650,16 @@ describe("App layout", () => {
 
     await waitFor(() => expect(connectSpy).toHaveBeenCalled());
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });
-    const searchButton = screen.getByRole("button", { name: "Search chats" });
+    const searchButton = within(sidebar).getByRole("button", { name: "Search chats" });
     const newChatButton = within(sidebar).getByRole("button", { name: "New chat" });
-    expect(searchButton.compareDocumentPosition(newChatButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(newChatButton.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(within(sidebar).getByRole("button", { name: "Settings" }));
 
     expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
     expect(document.title).toBe("Settings · Erza");
-    expect(screen.queryByRole("navigation", { name: "Sidebar navigation" })).not.toBeInTheDocument();
+    // 视图弹窗化后:设置在 modal 里打开,主侧边栏保留在背后不再卸载。
+    expect(screen.getByRole("navigation", { name: "Sidebar navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Settings" })).toBeInTheDocument();
     const settingsNav = screen.getByRole("navigation", { name: "Settings sections" });
     expect(settingsNav.className).toContain("overflow-x-auto");
     expect(settingsNav.className).not.toContain("grid-cols-2");
@@ -842,9 +844,12 @@ describe("App layout", () => {
 
     fireEvent.click(within(sidebar).getByRole("button", { name: "Settings" }));
     expect(await screen.findByRole("heading", { name: "Overview" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Back to chat" }));
+    // 视图弹窗化后:页内返回按钮已移除,改点弹窗右上 X 关闭。
+    const settingsDialog = screen.getByRole("dialog", { name: "Settings" });
+    fireEvent.click(within(settingsDialog).getByRole("button", { name: "Close" }));
 
     await waitFor(() => expect(document.title).toBe("Erza"));
+    expect(screen.queryByRole("dialog", { name: "Settings" })).not.toBeInTheDocument();
     expect(screen.getByText(HERO_GREETING_PATTERN)).toBeInTheDocument();
     // 同上:SettingsView lazy 首挂在高负载下可能超过 findByRole 默认 1s。
   }, 15_000);
@@ -877,10 +882,10 @@ describe("App layout", () => {
     expect(within(sidebar).getByText("Q2 roadmap")).toBeInTheDocument();
     expect(within(sidebar).getByText("Travel ideas")).toBeInTheDocument();
     const newChatButton = within(sidebar).getByRole("button", { name: "New chat" });
-    const searchButton = screen.getByRole("button", { name: "Search chats" });
+    const searchButton = within(sidebar).getByRole("button", { name: "Search chats" });
     expect(
       newChatButton.compareDocumentPosition(searchButton) &
-        Node.DOCUMENT_POSITION_PRECEDING,
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
     fireEvent.click(searchButton);
@@ -1021,15 +1026,17 @@ describe("App layout", () => {
     expect(screen.queryByRole("button", { name: "Start a new chat" })).not.toBeInTheDocument();
     const rail = screen.getByRole("navigation", { name: "Sidebar navigation" });
     expect(within(rail).getByRole("button", { name: "New chat" })).toBeInTheDocument();
-    // 折叠态顶栏跟随收缩:品牌名/版本号/搜索按钮隐藏,只剩收起按钮
-    expect(screen.queryByRole("button", { name: "Search chats" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
+    // 折叠态侧边栏只剩图标栏;顶栏 logo/版本号保留(不随侧边栏收起)
+    expect(within(rail).getByRole("button", { name: "Search chats" })).toBeInTheDocument();
+    expect(screen.getByText("v0.6.0")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Collapse sidebar" })).not.toBeInTheDocument();
+    expect(within(rail).getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
     expect(within(rail).queryByRole("button", { name: "View" })).not.toBeInTheDocument();
     expect(within(rail).queryByText("Existing chat")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    fireEvent.click(within(rail).getByRole("button", { name: "Expand sidebar" }));
     await waitFor(() => expect(sidebarAside.style.width).toBe("272px"));
-    // 展开后顶栏恢复:搜索按钮回来
+    // 展开后搜索按钮回到侧边栏新建对话下方
     expect(screen.getByRole("button", { name: "Search chats" })).toBeInTheDocument();
 
     const sidebar = screen.getByRole("navigation", { name: "Sidebar navigation" });

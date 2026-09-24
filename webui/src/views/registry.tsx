@@ -64,6 +64,8 @@ export interface ViewRegistration {
   render: (ctx: ViewRenderContext) => ReactNode;
   showBoundary?: boolean;    // 是否包 ErrorBoundary，默认 true
   order: number;              // sidebar 顶部按钮区排列顺序
+  /** false 时不在主页侧边栏显示按钮(已并入设置弹窗的资源页)。 */
+  sidebarVisible?: boolean;
 }
 
 export const VIEW_REGISTRY: ViewRegistration[] = [
@@ -73,6 +75,8 @@ export const VIEW_REGISTRY: ViewRegistration[] = [
     icon: Sparkles,
     showBoundary: true,
     order: 0,
+    // 已并入设置弹窗:主页侧边栏不再单独显示按钮。
+    sidebarVisible: false,
     render: (ctx) => <LazySkillsView onBack={ctx.onBack} token={ctx.token} />,
   },
   {
@@ -81,6 +85,8 @@ export const VIEW_REGISTRY: ViewRegistration[] = [
     icon: Package,
     showBoundary: false,      // 保持原有行为：无 ErrorBoundary
     order: 1,
+    // 已并入设置弹窗:主页侧边栏不再单独显示按钮。
+    sidebarVisible: false,
     render: (ctx) => <LazyToolsView onBack={ctx.onBack} token={ctx.token} />,
   },
   {
@@ -89,6 +95,8 @@ export const VIEW_REGISTRY: ViewRegistration[] = [
     icon: Users,
     showBoundary: true,
     order: 2,
+    // 已并入设置弹窗:主页侧边栏不再单独显示按钮。
+    sidebarVisible: false,
     render: (ctx) => <LazyAgentsView onBack={ctx.onBack} token={ctx.token} onUseAgent={ctx.onUseAgent} />,
   },
   {
@@ -97,6 +105,8 @@ export const VIEW_REGISTRY: ViewRegistration[] = [
     icon: PlugZap,
     showBoundary: true,
     order: 3,
+    // 已并入设置弹窗:主页侧边栏不再单独显示按钮。
+    sidebarVisible: false,
     render: (ctx) => <LazyMcpView onBack={ctx.onBack} token={ctx.token} />,
   },
   {
@@ -105,6 +115,8 @@ export const VIEW_REGISTRY: ViewRegistration[] = [
     icon: MessageSquare,
     showBoundary: false,      // 保持原有行为：无 ErrorBoundary
     order: 4,
+    // 已并入设置弹窗:主页侧边栏不再单独显示按钮。
+    sidebarVisible: false,
     render: (ctx) => <LazyChannelsView onBack={ctx.onBack} token={ctx.token} />,
   },
   {
@@ -131,6 +143,7 @@ export const VIEW_REGISTRY: ViewRegistration[] = [
         onBackToChat={ctx.onBack}
         onModelNameChange={ctx.onModelNameChange}
         onSettingsChange={ctx.onSettingsChange}
+        onUseAgent={ctx.onUseAgent}
         onRestart={ctx.onRestart}
         isRestarting={ctx.isRestarting}
         hostChromeInset={ctx.hostChromeInset}
@@ -143,7 +156,9 @@ export const VIEW_REGISTRY: ViewRegistration[] = [
 
 /** 获取所有在 Sidebar 顶部按钮区显示的视图（按 order 排序） */
 export function getSidebarNavItems(): ViewRegistration[] {
-  return [...VIEW_REGISTRY].sort((a, b) => a.order - b.order);
+  return [...VIEW_REGISTRY]
+    .filter((v) => v.sidebarVisible !== false)
+    .sort((a, b) => a.order - b.order);
 }
 
 /** 按 key 查找视图注册项 */

@@ -9,7 +9,7 @@ a transparent execution kernel, deterministic governance, and a pluggable edge.
 
 [![Python](https://img.shields.io/badge/python-≥3.11-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
-[![Release](https://img.shields.io/badge/release-v0.7.0-success)](https://github.com/zhoulingquan/Erza/releases)
+[![Release](https://img.shields.io/badge/release-v0.8.0-success)](https://github.com/zhoulingquan/Erza-Agent/releases)
 [![Status](https://img.shields.io/badge/status-alpha-orange)]()
 
 [简体中文](./README.md) | **[English]**

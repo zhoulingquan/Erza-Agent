@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { AlertTriangle, Check, ChevronDown, Folder, FolderOpen, Hand } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Folder, FolderOpen, FolderPlus, Hand } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { ApiError, pickWorkspaceFolder } from "@/lib/api";
+import { ApiError, createWorkspaceFolder, pickWorkspaceFolder } from "@/lib/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,6 +14,15 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +66,12 @@ export function WorkspaceProjectPicker({
   const [open, setOpen] = useState(false);
   const [pathError, setPathError] = useState<string | null>(null);
   const [pickingFolder, setPickingFolder] = useState(false);
+  // "新建文件夹"对话框状态:无头服务器弹不出系统对话框时,用后端 mkdir 直建。
+  const [mkdirOpen, setMkdirOpen] = useState(false);
+  const [mkdirParent, setMkdirParent] = useState("");
+  const [mkdirName, setMkdirName] = useState("");
+  const [mkdirError, setMkdirError] = useState<string | null>(null);
+  const [creatingFolder, setCreatingFolder] = useState(false);
   const currentProjectScope = selectedProjectScope(scope, defaultScope);
   const projectLabel = currentProjectScope
     ? currentProjectScope.project_name || projectNameFromPath(currentProjectScope.project_path)
@@ -132,10 +147,52 @@ export function WorkspaceProjectPicker({
     t,
   ]);
 
+  const openMkdirDialog = useCallback(() => {
+    setMkdirParent(
+      currentProjectScope?.project_path ?? defaultScope?.project_path ?? "",
+    );
+    setMkdirName("");
+    setMkdirError(null);
+    setOpen(false);
+    setMkdirOpen(true);
+  }, [currentProjectScope?.project_path, defaultScope?.project_path]);
+
+  const confirmMkdir = useCallback(async () => {
+    const parent = mkdirParent.trim();
+    const name = mkdirName.trim();
+    if (!parent || !name || creatingFolder) return;
+    setCreatingFolder(true);
+    setMkdirError(null);
+    try {
+      const payload = await createWorkspaceFolder(apiToken ?? "", parent, name);
+      if (!payload.picked || !payload.path) {
+        setMkdirError(t("workspace.dialog.newFolderFailed"));
+        return;
+      }
+      setMkdirOpen(false);
+      applyProjectPath(payload.path);
+    } catch (err) {
+      setMkdirError(
+        err instanceof ApiError && err.message
+          ? err.message
+          : t("workspace.dialog.newFolderFailed"),
+      );
+    } finally {
+      setCreatingFolder(false);
+    }
+  }, [apiToken, applyProjectPath, creatingFolder, mkdirName, mkdirParent, t]);
+
   if (!visible || !defaultScope || !onChange) return null;
 
   return (
-    <div className="flex items-center border-t border-border/25 bg-muted/60 px-4 py-1.5 dark:bg-white/[0.055]">
+    <div
+      className={cn(
+        "flex items-center border-t border-border/25 bg-muted/60 px-4 py-1.5 dark:bg-white/[0.055]",
+        // 贴着输入框卡片底部:下角圆角跟随卡片(hero 22px / thread 18px,各减 1px 边框),
+        // 否则方形直角会从卡片的圆角外漏出来(卡片 overflow-visible,开毛玻璃后更明显)。
+        isHero ? "rounded-b-[21px]" : "rounded-b-[17px]",
+      )}
+    >
       <DropdownMenu open={open} onOpenChange={setOpen}>
         <DropdownMenuTrigger asChild>
           <button
@@ -196,6 +253,21 @@ export function WorkspaceProjectPicker({
                 : t("workspace.dialog.browseFolder")}
             </span>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={disabled}
+            onSelect={(event) => {
+              event.preventDefault();
+              openMkdirDialog();
+            }}
+            className="flex min-h-[40px] cursor-default gap-3 rounded-[12px] px-3 py-2 focus:bg-muted/55"
+          >
+            <span className="grid h-6 w-6 shrink-0 place-items-center text-muted-foreground">
+              <FolderPlus className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-muted-foreground">
+              {t("workspace.dialog.newFolder")}
+            </span>
+          </DropdownMenuItem>
           {pathError || error ? (
             <p role="alert" className="px-1 text-[11.5px] font-medium text-destructive">
               {pathError ?? error}
@@ -203,6 +275,70 @@ export function WorkspaceProjectPicker({
           ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      {/* 新建文件夹对话框:无头服务器弹不出系统对话框时的替代通路,
+          建完直接选中新目录。 */}
+      <Dialog open={mkdirOpen} onOpenChange={setMkdirOpen}>
+        <DialogContent className="max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>{t("workspace.dialog.newFolderTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("workspace.dialog.newFolderDescription")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-1">
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-muted-foreground">
+                {t("workspace.dialog.newFolderParent")}
+              </span>
+              <Input
+                value={mkdirParent}
+                onChange={(e) => setMkdirParent(e.target.value)}
+                placeholder={t("workspace.dialog.newFolderParentPlaceholder")}
+                className="h-9 rounded-xl text-[13px]"
+              />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-[12px] font-medium text-muted-foreground">
+                {t("workspace.dialog.newFolderName")}
+              </span>
+              <Input
+                value={mkdirName}
+                onChange={(e) => setMkdirName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void confirmMkdir();
+                  }
+                }}
+                placeholder={t("workspace.dialog.newFolderNamePlaceholder")}
+                className="h-9 rounded-xl text-[13px]"
+              />
+            </label>
+            {mkdirError ? (
+              <p role="alert" className="text-[12px] font-medium text-destructive">
+                {mkdirError}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setMkdirOpen(false)}
+              disabled={creatingFolder}
+            >
+              {t("workspace.dialog.newFolderCancel")}
+            </Button>
+            <Button
+              onClick={() => void confirmMkdir()}
+              disabled={!mkdirParent.trim() || !mkdirName.trim() || creatingFolder}
+            >
+              {creatingFolder
+                ? t("workspace.dialog.newFolderCreating")
+                : t("workspace.dialog.newFolderCreate")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
