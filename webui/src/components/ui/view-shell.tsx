@@ -32,7 +32,8 @@ export function ViewShell({
         </div>
         <div className="ml-auto flex items-center gap-1.5">{actions}</div>
       </header>
-      <div className={cn("flex-1 overflow-y-auto scrollbar-none px-4 py-3", bodyClassName)}>
+      {/* pr-12:与 header 同步避让弹窗右上 X,滚动主体不遮关闭按钮 */}
+      <div className={cn("flex-1 overflow-y-auto scrollbar-none pl-4 pr-12 py-3", bodyClassName)}>
         {children}
       </div>
     </div>

@@ -50,7 +50,8 @@ const DialogContent = React.forwardRef<
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-3 top-3 h-7 w-7"
+              // z-10:确保关闭按钮永远浮在弹窗滚动内容之上
+              className="absolute right-3 top-3 z-10 h-7 w-7"
             >
               <X className="h-4 w-4" />
               <span className="sr-only">{i18n.t("common.close", { defaultValue: "Close" })}</span>

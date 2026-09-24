@@ -347,7 +347,8 @@ export function SettingsView({
         ) : (
         <div
           className={cn(
-            "mx-auto w-full max-w-[920px] px-5 py-8 sm:px-8 lg:py-12",
+            // 收窄内容列(920→840);右侧 pr-12 避让弹窗右上 X,滚动内容不再压住关闭按钮。
+            "mx-auto w-full max-w-[840px] pl-5 pr-12 py-8 sm:pl-8 sm:pr-12 lg:py-12",
             hostChromeInset && "pt-[4.25rem] sm:pt-[4.25rem] lg:pt-[4.75rem]",
           )}
         >
