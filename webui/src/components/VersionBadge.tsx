@@ -61,7 +61,7 @@ export function VersionBadge({ version, updaterUrl }: VersionBadgeProps) {
 
   return (
     <>
-      <span className="inline-flex shrink-0 items-center gap-1">
+      <span className="inline-flex shrink-0 items-center gap-2">
         <TooltipProvider delayDuration={200} skipDelayDuration={300}>
           <Tooltip>
             <TooltipTrigger asChild>
