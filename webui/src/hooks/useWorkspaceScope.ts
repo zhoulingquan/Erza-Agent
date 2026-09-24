@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { fetchWorkspaces } from "@/lib/api";
+import { fetchWorkspaces, updateDefaultAccessMode } from "@/lib/api";
 import type { ErzaClient } from "@/lib/erza-client";
 import type {
   ChatSummary,
@@ -147,13 +147,22 @@ export function useWorkspaceScope({
       setWorkspaceError(null);
       if (activeChatId) {
         if (!activeChatRunning) {
+          // 有选中对话:走 WS 信封,服务端落盘并同步全局默认。
           client.setWorkspaceScope(activeChatId, next);
         }
         return;
       }
+      // 无选中对话(空白页 hero):没有可落盘的 chat,本地草稿 + 直推全局默认,
+      // 否则这次切换永远到不了后端,设置页看不到变化。
       setDraftWorkspaceScope(next);
+      const mode = next.access_mode === "full" ? "full" : "default";
+      void updateDefaultAccessMode(token, mode).catch(() => {
+        // 推送失败则回滚草稿,避免对话框与设置页显示不一致
+        setDraftWorkspaceScope(workspaces?.default_scope ?? null);
+        setWorkspaceError(t("errors.workspaceScopeRejected.body"));
+      });
     },
-    [activeChatId, activeChatRunning, client],
+    [activeChatId, activeChatRunning, client, token, workspaces?.default_scope, t],
   );
 
   return {

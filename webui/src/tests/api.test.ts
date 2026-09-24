@@ -15,6 +15,7 @@ import {
   updateSidebarState,
   updateModelConfiguration,
   updateMcpServerTools,
+  updateDefaultAccessMode,
   updateNetworkSafetySettings,
   updateProviderSettings,
   updateSettings,
@@ -171,6 +172,17 @@ describe("webui API helpers", () => {
     expect(String(url)).not.toContain("sk-deep-test");
     expect(String(url)).not.toContain("api_key");
     expect(String(url)).not.toContain("api_base");
+  });
+
+  it("pushes only the default access mode for hero scope changes", async () => {
+    await updateDefaultAccessMode("tok", "full");
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/settings/network-safety/update?webui_default_access_mode=full",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer tok" },
+      }),
+    );
   });
 
   it("serializes network safety settings updates", async () => {

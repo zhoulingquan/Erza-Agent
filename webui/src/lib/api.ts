@@ -777,6 +777,23 @@ export async function updateWebFetchSettings(
   );
 }
 
+/**
+ * 只推送全局默认访问模式(主页无选中对话时拨权限下拉走这里)。
+ * 后端单参数即接受;成功后存盘会话会由服务端迁移,无需前端再管。
+ */
+export async function updateDefaultAccessMode(
+  token: string,
+  mode: "default" | "full",
+  base: string = "",
+): Promise<SettingsPayload> {
+  const query = new URLSearchParams();
+  query.set("webui_default_access_mode", mode);
+  return request<SettingsPayload>(
+    `${base}/api/settings/network-safety/update?${query}`,
+    token,
+  );
+}
+
 export async function updateNetworkSafetySettings(
   token: string,
   update: NetworkSafetySettingsUpdate,
