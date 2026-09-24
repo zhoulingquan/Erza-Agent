@@ -1016,14 +1016,14 @@ function Shell({
                     : SIDEBAR_RAIL_WIDTH,
               }}
             >
-              {/* 浮动式侧边栏:内层卡片留白+圆角+边框+阴影,悬浮于背景之上。
-               * aside 本体保持原宽度参与布局,过渡动画不变。
-               * 折叠态外层仅 56px,若仍 p-4 会把卡片压到 24px 导致图标全被裁掉,
-               * 因此折叠时改为 p-1.5,给 36px 图标钮留出空间。 */}
+               {/* 浮动式侧边栏:内层卡片留白+圆角+边框+阴影,悬浮于背景之上。
+                * aside 本体保持原宽度参与布局,过渡动画不变。
+                * 折叠态外层仅 56px,若仍 p-4 会把卡片压到 24px 导致图标全被裁掉,
+                * 因此折叠时横向收到 px-1.5;纵向保持 py-4,卡片高度与展开态一致。 */}
               <div
                 className={cn(
                   "absolute inset-0 transition-[padding] duration-300 ease-out",
-                  (isNarrowViewport || !hostSidebarOpen) ? "p-1.5" : "p-4",
+                  (isNarrowViewport || !hostSidebarOpen) ? "px-1.5 py-4" : "p-4",
                 )}
               >
                 <div
@@ -1031,9 +1031,9 @@ function Shell({
                   className={cn(
                     "h-full w-full overflow-hidden rounded-2xl border",
                     sidebarGlass
-                      ? "border-border/40 bg-sidebar"
-                      : "border-border/50 bg-sidebar",
-                    "shadow-[0_8px_28px_rgba(15,23,42,0.08)] dark:shadow-[0_8px_28px_rgba(0,0,0,0.4)]",
+                      ? "border-border/40"
+                      : "border-border/50",
+                    "shadow-[0_4px_16px_rgba(15,23,42,0.05)] dark:shadow-[0_4px_16px_rgba(0,0,0,0.25)]",
                   )}
                   style={
                     sidebarGlass

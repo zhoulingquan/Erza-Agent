@@ -72,10 +72,21 @@ export function Sidebar(props: SidebarProps) {
       aria-label={t("sidebar.navigation")}
       className={cn(
         "flex h-full w-full min-w-0 flex-col text-sidebar-foreground",
-        props.transparent ? "bg-transparent" : "bg-sidebar",
+        // 根节点透明:四周留白(左右/底部)透出壁纸/背景,实色底收进内层内容容器。
+        // padding 与宽度同速过渡,收起时图标不跳变(对齐动画避免漂移)。
+        "bg-transparent transition-[padding] duration-300 ease-out",
         !props.hostChromeInset && "border-r border-sidebar-border/60",
+        // 折叠时外层卡片仅横向收(px-1.5),纵向仍为 py-4,故此处不再需要
+        // 纵向补偿;nav 纵向与展开态一致(顶 0、底 pb-2),按钮/卡片高度不变。
+        collapsed ? "pb-2" : "px-2 pb-2",
       )}
     >
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl",
+          props.transparent ? "bg-transparent" : "bg-sidebar",
+        )}
+      >
       {/* 品牌区:仅 native host 模式渲染(web 模式下 logo + PanelLeft 按钮已移至全局 TopBar)。
        * 折叠态仅显示文字,展开态显示完整品牌名 + 右侧收起按钮。 */}
       {props.hostChromeInset ? (
@@ -222,6 +233,7 @@ export function Sidebar(props: SidebarProps) {
         />
         <ConnectionBadge />
       </div>
+      </div>
     </nav>
   );
 }
@@ -254,7 +266,7 @@ function SidebarActionButton({
         "transition-[width,padding,border-radius,color,background-color] duration-300 ease-out",
         collapsed
           ? "w-9 justify-center gap-0 rounded-xl px-0"
-          : "w-full justify-start gap-2 px-3 text-[12.5px]",
+          : "w-full justify-start gap-2 px-2 text-[12.5px]",
         active && "bg-sidebar-accent text-sidebar-foreground shadow-[inset_0_0_0_1px_hsl(var(--sidebar-border)/0.55)]",
         className,
       )}
