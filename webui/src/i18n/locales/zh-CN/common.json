@@ -600,7 +600,10 @@
         "projectAria": "选择项目",
         "projectPlaceholder": "选择项目",
         "default": "默认权限",
-        "full": "完全访问权限"
+        "full": "完全访问权限",
+        "fullConfirmTitle": "开启完全访问权限？",
+        "fullConfirmDesc": "Agent 将可以读写本机全盘文件。请确认是在可信环境下操作，误开可能导致重要文件被修改或删除。",
+        "fullConfirmAction": "确认开启"
       }
     },
     "scrollToBottom": "滚动到底部",

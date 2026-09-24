@@ -3,6 +3,16 @@ import { AlertTriangle, Check, ChevronDown, Folder, FolderOpen, Hand } from "luc
 import { useTranslation } from "react-i18next";
 
 import { ApiError, pickWorkspaceFolder } from "@/lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -213,6 +223,8 @@ export function WorkspaceAccessMenu({
   const { t } = useTranslation();
   const mode = scope.access_mode;
   const isFull = mode === "full";
+  // 切到完全访问先弹确认框(全盘读写高危),确认后才真正切换。
+  const [confirmFullOpen, setConfirmFullOpen] = useState(false);
 
   const setMode = (value: WorkspaceAccessMode) => {
     if (value === "full" && !canUseFullAccess) return;
@@ -220,49 +232,86 @@ export function WorkspaceAccessMenu({
     onChange?.(scopeWithAccessMode(scope, value));
   };
 
+  const requestFullAccess = () => {
+    if (isFull) return;
+    setConfirmFullOpen(true);
+  };
+
+  const confirmFullAccess = () => {
+    setConfirmFullOpen(false);
+    setMode("full");
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={disabled || !onChange}>
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={t("thread.composer.workspace.accessAria")}
-          className={cn(
-            "max-w-[12.5rem] rounded-[10px] border border-transparent font-semibold shadow-none",
-            isHero ? "h-8 px-2.5 text-[12px]" : "h-9 px-3 text-[12.5px]",
-            isFull
-              ? "bg-transparent text-orange-600 hover:bg-orange-500/8 dark:text-orange-300 dark:hover:bg-orange-400/10"
-              : "bg-transparent text-muted-foreground hover:bg-foreground/[0.045] hover:text-foreground dark:hover:bg-white/[0.06]",
-          )}
-        >
-          {isFull ? (
-            <AlertTriangle className={cn("mr-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3.5 w-3.5")} />
-          ) : (
-            <Hand className={cn("mr-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3.5 w-3.5")} />
-          )}
-          <span className="truncate">
-            {t(isFull ? "thread.composer.workspace.full" : "thread.composer.workspace.default")}
-          </span>
-          <ChevronDown className={cn("ml-1.5 shrink-0", isHero ? "h-3 w-3" : "h-3 w-3")} />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        <AccessMenuItem
-          icon={<Hand className="h-4 w-4" />}
-          label={t("thread.composer.workspace.default")}
-          selected={mode === "restricted"}
-          onSelect={() => setMode("restricted")}
-        />
-        <AccessMenuItem
-          icon={<AlertTriangle className="h-4 w-4" />}
-          label={t("thread.composer.workspace.full")}
-          selected={mode === "full"}
-          disabled={!canUseFullAccess}
-          warning
-          onSelect={() => setMode("full")}
-        />
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild disabled={disabled || !onChange}>
+          <Button
+            type="button"
+            variant="ghost"
+            aria-label={t("thread.composer.workspace.accessAria")}
+            className={cn(
+              "max-w-[12.5rem] rounded-[10px] border border-transparent font-semibold shadow-none",
+              isHero ? "h-8 px-2.5 text-[12px]" : "h-9 px-3 text-[12.5px]",
+              isFull
+                ? "bg-transparent text-orange-600 hover:bg-orange-500/8 dark:text-orange-300 dark:hover:bg-orange-400/10"
+                : "bg-transparent text-muted-foreground hover:bg-foreground/[0.045] hover:text-foreground dark:hover:bg-white/[0.06]",
+            )}
+          >
+            {isFull ? (
+              <AlertTriangle className={cn("mr-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3.5 w-3.5")} />
+            ) : (
+              <Hand className={cn("mr-1.5 shrink-0", isHero ? "h-3.5 w-3.5" : "h-3.5 w-3.5")} />
+            )}
+            <span className="truncate">
+              {t(isFull ? "thread.composer.workspace.full" : "thread.composer.workspace.default")}
+            </span>
+            <ChevronDown className={cn("ml-1.5 shrink-0", isHero ? "h-3 w-3" : "h-3 w-3")} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-56">
+          <AccessMenuItem
+            icon={<Hand className="h-4 w-4" />}
+            label={t("thread.composer.workspace.default")}
+            selected={mode === "restricted"}
+            onSelect={() => setMode("restricted")}
+          />
+          <AccessMenuItem
+            icon={<AlertTriangle className="h-4 w-4" />}
+            label={t("thread.composer.workspace.full")}
+            selected={mode === "full"}
+            disabled={!canUseFullAccess}
+            warning
+            onSelect={requestFullAccess}
+          />
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <AlertDialog open={confirmFullOpen} onOpenChange={(o) => (!o ? setConfirmFullOpen(false) : undefined)}>
+        <AlertDialogContent className="w-[min(calc(100vw-2rem),22.75rem)] gap-0 p-5 text-center">
+          <AlertDialogHeader className="items-center space-y-0 text-center">
+            <div className="mb-4 grid h-12 w-12 place-items-center rounded-full bg-orange-500/10">
+              <AlertTriangle className="h-4 w-4 text-orange-600 dark:text-orange-300" aria-hidden />
+            </div>
+            <AlertDialogTitle className="text-center text-[14px] font-medium leading-5 text-foreground">
+              {t("thread.composer.workspace.fullConfirmTitle", { defaultValue: "开启完全访问权限？" })}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="mt-2 max-w-[17rem] text-center text-[12px] leading-4 text-muted-foreground">
+              {t("thread.composer.workspace.fullConfirmDesc", {
+                defaultValue: "Agent 将可以读写本机全盘文件，请确认后再继续。",
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-5 grid grid-cols-2 gap-2.5 space-x-0">
+            <AlertDialogCancel onClick={() => setConfirmFullOpen(false)}>
+              {t("settings.actions.cancel", { defaultValue: "取消" })}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmFullAccess}>
+              {t("thread.composer.workspace.fullConfirmAction", { defaultValue: "确认开启" })}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
 

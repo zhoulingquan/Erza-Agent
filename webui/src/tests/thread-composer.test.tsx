@@ -116,6 +116,10 @@ describe("ThreadComposer", () => {
     fireEvent.pointerDown(screen.getByRole("button", { name: "Workspace access mode" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Full Access/ }));
 
+    // 切完全访问先弹确认框,确认后才真正切换
+    expect(onWorkspaceScopeChange).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole("button", { name: /确认开启|Enable/ }));
+
     expect(onWorkspaceScopeChange).toHaveBeenCalledWith(
       expect.objectContaining({
         project_path: "/tmp/project",
@@ -123,6 +127,30 @@ describe("ThreadComposer", () => {
         restrict_to_workspace: false,
       }),
     );
+  });
+
+  it("cancelling the full-access confirm keeps current scope", async () => {
+    const onWorkspaceScopeChange = vi.fn();
+    render(
+      <ThreadComposer
+        onSend={vi.fn()}
+        placeholder="Type your message..."
+        workspaceScope={{
+          project_path: "/tmp/project",
+          project_name: "project",
+          access_mode: "restricted",
+          restrict_to_workspace: true,
+        }}
+        workspaceControls={{ can_change_project: true, can_use_full_access: true }}
+        onWorkspaceScopeChange={onWorkspaceScopeChange}
+      />,
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Workspace access mode" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Full Access/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /取消|Cancel/ }));
+
+    expect(onWorkspaceScopeChange).not.toHaveBeenCalled();
   });
 
   it("keeps project selection as a compact composer dropdown", async () => {

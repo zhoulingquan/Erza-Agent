@@ -600,7 +600,10 @@
         "projectAria": "Choose project",
         "projectPlaceholder": "Select project",
         "default": "Default Permission",
-        "full": "Full Access"
+        "full": "Full Access",
+        "fullConfirmTitle": "Enable full access?",
+        "fullConfirmDesc": "The agent will be able to read and write files across this machine. Only proceed in a trusted environment — a mistake may modify or delete important files.",
+        "fullConfirmAction": "Enable"
       }
     },
     "scrollToBottom": "Scroll to bottom",
