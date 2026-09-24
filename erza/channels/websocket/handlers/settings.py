@@ -28,6 +28,7 @@ from .._http_routes import (
     _http_json_response,
     _parse_mcp_settings_query,
 )
+from ..api._query import _query_first_alias
 from ._common import require_auth
 
 
@@ -162,6 +163,19 @@ def network_safety_update(ctx: RouteContext) -> Response:
         payload = update_network_safety_settings(query, store=ctx.deps.settings)
     except WebUISettingsError as e:
         return _http_error(e.status, e.message)
+    # 设置 → 对话框:默认权限变更时,把已存盘会话的权限位一起迁移,
+    # 并通知在线客户端刷新(打开的对话框即时翻转,无需重进)。
+    if _query_first_alias(query, "webui_default_access_mode", "webuiDefaultAccessMode") is not None:
+        try:
+            migrated = ctx.deps.webui_workspaces.sync_sessions_to_default_access_mode()
+        except Exception as e:
+            ctx.deps.logger.warning("权限迁移失败: {}", e)
+            migrated = []
+        for chat_id in migrated:
+            try:
+                ctx.deps.notify_session_updated(chat_id)
+            except Exception:
+                pass
     return _http_json_response(ctx.deps.with_restart_state(payload, section="runtime"))
 
 

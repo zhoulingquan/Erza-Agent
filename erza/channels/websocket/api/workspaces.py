@@ -26,6 +26,11 @@ _DEFAULT_ACCESS_MODES = {"default", "full"}
 _LEGACY_RESTRICTED_DEFAULT_ACCESS_MODE = "restricted"
 _WEBUI_SCOPE_CHANNEL = "websocket"
 
+# scope access_mode → 全局默认模式的映射(单真相源:对话框与安全设置永远一致,
+# 不分本轮/全局)。project_path 等其它字段不受影响,只同步权限位。
+_SCOPE_MODE_TO_DEFAULT = {"full": "full", "restricted": "default"}
+_DEFAULT_MODE_TO_SCOPE = {"full": "full", "default": "restricted"}
+
 
 def webui_workspace_state_path() -> Path:
     return get_webui_dir() / "workspace-state.json"
@@ -250,11 +255,65 @@ class WebUIWorkspaceController:
     ) -> WorkspaceScope:
         if chat_running:
             raise WorkspaceScopeError("chat_running", status=409)
-        return self.scope_from_envelope(
+        scope = self.scope_from_envelope(
             envelope,
             session_key=f"websocket:{chat_id}",
             controls_available=controls_available,
         )
+        # 对话框 → 设置:本轮权限变更即写为全局默认(仅权限位,不动项目路径)。
+        # 403 在 scope_from_envelope 内已抛,能到这里的一定是合法切换。
+        self._sync_default_from_scope(scope)
+        return scope
+
+    @staticmethod
+    def _sync_default_from_scope(scope: WorkspaceScope) -> bool:
+        """把单个 scope 的权限位同步为全局默认,返回是否发生变更。"""
+        target = _SCOPE_MODE_TO_DEFAULT.get(scope.access_mode)
+        if target is None or read_webui_default_access_mode() == target:
+            return False
+        return write_webui_default_access_mode(target)
+
+    def sync_sessions_to_default_access_mode(self) -> list[str]:
+        """把所有存盘会话的权限位迁移到当前全局默认(设置 → 对话框)。
+
+        只改 access_mode/restrict_to_workspace,保留各会话的 project_path。
+        无显式 scope 的会话本就跟随默认,天然跳过。返回被迁移的 chat_id 列表,
+        供调用方通知客户端刷新。
+        """
+        if self._sessions is None:
+            return []
+        target_scope_mode = _DEFAULT_MODE_TO_SCOPE.get(read_webui_default_access_mode())
+        if target_scope_mode is None:
+            return []
+        migrated: list[str] = []
+        try:
+            items = self._sessions.list_sessions()
+        except Exception as e:
+            logger.warning("列出会话失败,跳过权限迁移: {}", e)
+            return []
+        for item in items:
+            key = item.get("key") or "" if isinstance(item, dict) else ""
+            if not key.startswith("websocket:"):
+                continue
+            chat_id = key.split(":", 1)[1]
+            try:
+                current = self.scope_for_session_key(key)
+            except Exception as e:
+                logger.warning("读取会话 {} scope 失败,跳过: {}", key, e)
+                continue
+            if current.access_mode == target_scope_mode:
+                continue
+            try:
+                rebuilt = build_workspace_scope(
+                    current.project_path,
+                    target_scope_mode,
+                    source_channel=_WEBUI_SCOPE_CHANNEL,
+                )
+                self.persist_scope(chat_id, rebuilt)
+                migrated.append(chat_id)
+            except Exception as e:
+                logger.warning("迁移会话 {} 权限失败: {}", key, e)
+        return migrated
 
     def scope_for_message(
         self,

@@ -133,9 +133,10 @@ def test_webui_default_access_applies_to_unscoped_old_sessions(tmp_path, monkeyp
     assert new_scope.access_mode == "full"
 
 
-def test_webui_default_access_does_not_override_explicit_session_scope(
-    tmp_path, monkeypatch
-) -> None:
+def test_set_request_syncs_scope_mode_to_global_default(tmp_path, monkeypatch) -> None:
+    """对话框 → 设置:本轮切 full,全局默认跟着变(单真相源)。"""
+    from erza.channels.websocket.api.workspaces import read_webui_default_access_mode
+
     monkeypatch.setattr("erza.channels.websocket.api.workspaces.get_webui_dir", lambda: tmp_path / "webui")
     default = tmp_path / "default"
     project = tmp_path / "project"
@@ -147,10 +148,73 @@ def test_webui_default_access_does_not_override_explicit_session_scope(
         default_workspace=default,
         default_restrict_to_workspace=True,
     )
-    explicit = default_workspace_scope(project, restrict_to_workspace=False)
-    controller.persist_scope("explicit-chat", explicit)
+    assert read_webui_default_access_mode() == "default"
 
-    scope = controller.scope_for_session_key("websocket:explicit-chat")
+    scope = controller.scope_for_set_request(
+        {"workspace_scope": {"project_path": str(project), "access_mode": "full"}},
+        chat_id="c1",
+        chat_running=False,
+        controls_available=True,
+    )
+
+    assert scope.access_mode == "full"
+    assert read_webui_default_access_mode() == "full"
+
+
+def test_set_request_project_only_change_keeps_global_default(tmp_path, monkeypatch) -> None:
+    """只换项目不换权限位时,全局默认不动。"""
+    from erza.channels.websocket.api.workspaces import read_webui_default_access_mode
+
+    monkeypatch.setattr("erza.channels.websocket.api.workspaces.get_webui_dir", lambda: tmp_path / "webui")
+    default = tmp_path / "default"
+    project = tmp_path / "project"
+    default.mkdir()
+    project.mkdir()
+    sessions = SessionManager(tmp_path / "sessions")
+    controller = WebUIWorkspaceController(
+        session_manager=sessions,
+        default_workspace=default,
+        default_restrict_to_workspace=True,
+    )
+
+    scope = controller.scope_for_set_request(
+        {"workspace_scope": {"project_path": str(project), "access_mode": "restricted"}},
+        chat_id="c1",
+        chat_running=False,
+        controls_available=True,
+    )
 
     assert scope.project_path == project.resolve()
-    assert scope.access_mode == "full"
+    assert read_webui_default_access_mode() == "default"
+
+
+def test_sync_sessions_to_default_migrates_modes_keep_projects(tmp_path, monkeypatch) -> None:
+    """设置 → 对话框:改默认后存盘会话权限位跟随,项目路径保留。"""
+    monkeypatch.setattr("erza.channels.websocket.api.workspaces.get_webui_dir", lambda: tmp_path / "webui")
+    default = tmp_path / "default"
+    project = tmp_path / "project"
+    default.mkdir()
+    project.mkdir()
+    sessions = SessionManager(tmp_path / "sessions")
+    controller = WebUIWorkspaceController(
+        session_manager=sessions,
+        default_workspace=default,
+        default_restrict_to_workspace=True,
+    )
+    controller.persist_scope(
+        "full-chat", default_workspace_scope(project, restrict_to_workspace=False)
+    )
+    controller.persist_scope(
+        "restricted-chat", default_workspace_scope(project, restrict_to_workspace=True)
+    )
+
+    assert write_webui_default_access_mode("full") is True
+    migrated = controller.sync_sessions_to_default_access_mode()
+
+    assert migrated == ["restricted-chat"]
+    assert controller.scope_for_session_key("websocket:restricted-chat").access_mode == "full"
+    assert (
+        controller.scope_for_session_key("websocket:restricted-chat").project_path
+        == project.resolve()
+    )
+    assert controller.scope_for_session_key("websocket:full-chat").access_mode == "full"
