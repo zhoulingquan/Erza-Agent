@@ -119,15 +119,14 @@ export function VersionBadge({ version, updaterUrl }: VersionBadgeProps) {
               version: updateInfo?.latestVersion,
             })}
             className={cn(
-              "inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-0.5",
-              "text-[11px] font-medium transition-colors",
+              "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full",
+              "transition-colors",
               requiresForce
                 ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 : "bg-primary text-primary-foreground hover:bg-primary/90",
             )}
           >
             <ArrowUp className="h-3 w-3" aria-hidden />
-            {t("version.upgrade", { defaultValue: "升级" })}
           </button>
         )}
       </span>

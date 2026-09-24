@@ -33,10 +33,11 @@ describe("VersionBadge upgrade button", () => {
     );
     renderBadge("0.7.0");
 
-    const upgradeBtn = await screen.findByText("Upgrade");
-    expect(upgradeBtn).toBeInTheDocument();
+    // 版本号按钮与图标升级按钮共享同一个 aria-label,应同时出现两个
+    const buttons = await screen.findAllByRole("button", { name: /New version/ });
+    expect(buttons).toHaveLength(2);
 
-    fireEvent.click(upgradeBtn);
+    fireEvent.click(buttons[1]);
     await screen.findByText(/something new/);
   });
 
@@ -53,7 +54,8 @@ describe("VersionBadge upgrade button", () => {
     await waitFor(() =>
       expect(screen.getByText("v0.7.0")).toBeInTheDocument(),
     );
-    expect(screen.queryByText("Upgrade")).not.toBeInTheDocument();
-    expect(screen.queryByText("升级")).not.toBeInTheDocument();
+    // 无更新时只有版本号按钮,不应出现图标升级按钮
+    expect(screen.queryAllByRole("button", { name: /New version/ })).toHaveLength(0);
+    expect(screen.getByText("v0.7.0")).toBeInTheDocument();
   });
 });
