@@ -19,7 +19,7 @@ export interface WallpaperSettings {
 export const WALLPAPER_GLASS_BLUR_PX = 16;
 
 export const DEFAULT_WALLPAPER: WallpaperSettings = {
-  image: null,
+  image: "/wallpapers/erza-scarlet.jpg",
   blur: 8,
   dim: 0.5,
   glass: true,
