@@ -343,7 +343,7 @@ describe("ThreadViewport", () => {
       await waitFor(() =>
         expect(scrollIntoView).toHaveBeenCalledWith({
           block: "end",
-          behavior: "auto",
+          behavior: "smooth",
         }),
       );
     } finally {

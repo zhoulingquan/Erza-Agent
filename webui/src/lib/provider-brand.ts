@@ -9,21 +9,9 @@ function officialFaviconUrl(domain: string): string {
   return `https://${domain}/favicon.ico`;
 }
 
-function duckDuckGoFaviconUrl(domain: string): string {
-  return `https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`;
-}
-
-function googleFaviconUrl(domain: string): string {
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
-}
-
 export function faviconUrls(domain: string): string[] {
   const faviconDomain = faviconDomainFromValue(domain);
-  return [
-    officialFaviconUrl(faviconDomain),
-    duckDuckGoFaviconUrl(faviconDomain),
-    googleFaviconUrl(domain),
-  ];
+  return [officialFaviconUrl(faviconDomain)];
 }
 
 function brand(
@@ -78,12 +66,6 @@ export function logoFallbackUrls(logoUrl: string | null | undefined): string[] {
 
   const urls: string[] = [];
   const domain = domainFromLogoUrl(value);
-  const isFaviconProxy = /^(https?:\/\/)?(www\.google\.com|google\.com|icons\.duckduckgo\.com)\//i.test(value);
-  if (domain && isFaviconProxy) {
-    addUniqueLogoUrl(urls, value);
-    faviconUrls(domain).forEach((url) => addUniqueLogoUrl(urls, url));
-    return urls;
-  }
   addUniqueLogoUrl(urls, value);
   if (domain) faviconUrls(domain).forEach((url) => addUniqueLogoUrl(urls, url));
   return urls;
@@ -98,7 +80,7 @@ export const PROVIDER_LABEL_ALIASES: Record<string, string> = {
 };
 
 const PROVIDER_BRANDS: Record<string, ProviderBrand> = {
-  agnes: brand("agnes-ai.com", "#FF6B35", "A"),
+  agnes: brand("agnes-ai.com", "#FF6B35", "A", ["https://agnes-ai.com/images/biglogo.png"]),
   brave: brand("brave.com", "#FB542B", "B"),
   custom: brand("localhost", "#6B7280", "C"),
   deepseek: brand("deepseek.com", "#4D6BFE", "DS"),

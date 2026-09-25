@@ -761,7 +761,6 @@ export function ThreadShell({
           showScrollToBottomButton={!!session}
           onRewind={session ? handleRewind : undefined}
           onRetry={session ? handleRetry : undefined}
-          wallpaperActive={wallpaperVisible}
         />
       </div>
     </section>

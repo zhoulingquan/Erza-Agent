@@ -13,7 +13,6 @@ import { useTranslation } from "react-i18next";
 import { ThreadMessages } from "@/components/thread/ThreadMessages";
 import { ThreadNavDots } from "@/components/thread/ThreadNavDots";
 import { isAgentActivityMember } from "@/components/thread/AgentActivityCluster";
-import { useWallpaper, isGlassActive, WALLPAPER_GLASS_BLUR_PX } from "@/hooks/useWallpaper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { UIMessage } from "@/lib/types";
@@ -30,13 +29,15 @@ interface ThreadViewportProps {
   onRewind?: (userMessageIndex: number) => void;
   /** Called when the user clicks the retry button under an assistant reply. */
   onRetry?: (userMessageIndex: number) => void;
-  /** 背景图是否可见:可见时 composer 停靠区切换为毛玻璃半透明样式。 */
-  wallpaperActive?: boolean;
 }
 
 const NEAR_BOTTOM_PX = 48;
 const DEFAULT_SCROLL_BUTTON_BOTTOM_PX = 192;
 const SCROLL_BUTTON_COMPOSER_GAP_PX = 16;
+/* 镜像跟随:单帧应用的高度变化上限(px)。小增量即时贴合,大跳变(图片加载等)分摊多帧,避免瞬移。 */
+const MIRROR_MAX_PX_PER_FRAME = 160;
+/* 连续多少帧高度无变化后停止镜像循环(流式结束约 0.5s 后收尾)。 */
+const MIRROR_IDLE_FRAMES = 30;
 export const INITIAL_HISTORY_WINDOW = 160;
 export const HISTORY_WINDOW_INCREMENT = 120;
 
@@ -63,12 +64,8 @@ export function ThreadViewport({
   showScrollToBottomButton = true,
   onRewind,
   onRetry,
-  wallpaperActive = false,
 }: ThreadViewportProps) {
   const { t } = useTranslation();
-  const { wallpaper } = useWallpaper();
-  // 毛玻璃只在背景可见且强度 > 0 时生效(强度 0 即关闭)
-  const glassActive = wallpaperActive && isGlassActive(wallpaper);
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
@@ -76,6 +73,12 @@ export function ThreadViewport({
   const lastConversationKeyRef = useRef<string | null>(conversationKey);
   const pendingConversationScrollRef = useRef(true);
   const scrollFrameIdsRef = useRef<number[]>([]);
+  /** 程序化滚动代际:新调用/用户打断时 +1,让已排队的跟随帧失效(netcatty stopScroll 等价)。 */
+  const followGenRef = useRef(0);
+  /** 镜像跟随循环的 raf id(同一时间最多一个,高度变化自动贴合,无需重启)。 */
+  const mirrorFollowRafRef = useRef<number | null>(null);
+  /** 程序化滚动进行中:此时 scroll 事件来自代码而非用户,不判定为"离开底部"。 */
+  const isProgrammaticScrollRef = useRef(false);
   const restoreScrollAfterPrependRef =
     useRef<{ height: number; top: number } | null>(null);
   /** User scrolled away from the bottom; do not auto-yank until they return or we reset (new chat / send). */
@@ -86,7 +89,6 @@ export function ThreadViewport({
     useState(INITIAL_HISTORY_WINDOW);
   const visibleMessageCountRef = useRef(visibleMessageCount);
   const visibleCountByChatRef = useRef<Map<string, number>>(new Map());
-  const resizeTimerRef = useRef<number | null>(null);
   const hasMessages = messages.length > 0;
   const visibleMessages = useMemo(
     () => windowMessages(messages, visibleMessageCount),
@@ -130,6 +132,15 @@ export function ThreadViewport({
     scrollFrameIdsRef.current = [];
   }, []);
 
+  /** 停掉镜像跟随循环(打断/取代/卸载时用)。 */
+  const stopMirrorFollow = useCallback(() => {
+    if (mirrorFollowRafRef.current !== null) {
+      window.cancelAnimationFrame(mirrorFollowRafRef.current);
+      mirrorFollowRafRef.current = null;
+    }
+    isProgrammaticScrollRef.current = false;
+  }, []);
+
   const scrollToBottomNow = useCallback((smooth = false) => {
     const el = scrollRef.current;
     const marker = bottomRef.current;
@@ -146,21 +157,77 @@ export function ThreadViewport({
     (smooth = false, frames = 1, options?: { force?: boolean }) => {
       const force = options?.force ?? false;
       cancelScheduledBottomScroll();
+      // 新调用取代旧调用,用户打断同理:已排队的帧直接失效。
+      followGenRef.current += 1;
+      stopMirrorFollow();
+      const gen = followGenRef.current;
       const run = () => {
         if (!force && userReadingHistoryRef.current) return;
+        if (gen !== followGenRef.current) return;
         scrollToBottomNow(smooth);
       };
       run();
       for (let i = 1; i < frames; i += 1) {
         const id = window.requestAnimationFrame(() => {
           if (!force && userReadingHistoryRef.current) return;
+          if (gen !== followGenRef.current) return;
           scrollToBottomNow(smooth);
         });
         scrollFrameIdsRef.current.push(id);
       }
     },
-    [cancelScheduledBottomScroll, scrollToBottomNow],
+    [cancelScheduledBottomScroll, scrollToBottomNow, stopMirrorFollow],
   );
+
+  /** 用户滚轮/触摸/主动上滚时打断正在进行的程序化平滑滚动。 */
+  const interruptProgrammaticScroll = useCallback(() => {
+    cancelScheduledBottomScroll();
+    followGenRef.current += 1;
+    stopMirrorFollow();
+  }, [cancelScheduledBottomScroll, stopMirrorFollow]);
+
+  /**
+   * 增量镜像跟随:每帧把内容高度的变化量原样加到 scrollTop 上,视口与内容锁死、
+   * 相对静止——新文字只在底部生长,运动粒度即内容生长粒度,天然平滑。
+   * 大跳变按每帧上限分摊;连续多帧无变化自动收尾。已在跟随则直接返回。
+   */
+  const mirrorFollowToBottom = useCallback(() => {
+    if (userReadingHistoryRef.current) return;
+    const el = scrollRef.current;
+    if (!el || mirrorFollowRafRef.current !== null) return;
+    const gen = followGenRef.current;
+    isProgrammaticScrollRef.current = true;
+    let lastHeight = el.scrollHeight;
+    let carry = 0;
+    let idleFrames = 0;
+    const step = () => {
+      // 被新调用/用户打断取代:直接退出。
+      if (gen !== followGenRef.current) {
+        stopMirrorFollow();
+        return;
+      }
+      const dh = el.scrollHeight - lastHeight + carry;
+      lastHeight = el.scrollHeight;
+      carry = 0;
+      if (Math.abs(dh) < 0.5) {
+        idleFrames += 1;
+        if (idleFrames >= MIRROR_IDLE_FRAMES) {
+          el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
+          stopMirrorFollow();
+          setAtBottom(true);
+          return;
+        }
+        mirrorFollowRafRef.current = window.requestAnimationFrame(step);
+        return;
+      }
+      idleFrames = 0;
+      const apply = Math.sign(dh) * Math.min(Math.abs(dh), MIRROR_MAX_PX_PER_FRAME);
+      carry = dh - apply;
+      el.scrollTop += apply;
+      mirrorFollowRafRef.current = window.requestAnimationFrame(step);
+    };
+    mirrorFollowRafRef.current = window.requestAnimationFrame(step);
+  }, [stopMirrorFollow]);
 
   const loadEarlierMessages = useCallback(() => {
     const el = scrollRef.current;
@@ -172,10 +239,11 @@ export function ThreadViewport({
     }
     userReadingHistoryRef.current = true;
     setAtBottom(false);
+    interruptProgrammaticScroll();
     setVisibleMessageCount((count) =>
       Math.min(messages.length, count + HISTORY_WINDOW_INCREMENT),
     );
-  }, [messages.length]);
+  }, [messages.length, interruptProgrammaticScroll]);
 
   const measureComposerDock = useCallback(() => {
     const el = composerDockRef.current;
@@ -200,7 +268,8 @@ export function ThreadViewport({
   useEffect(() => {
     if (scrollToBottomSignal <= 0) return;
     userReadingHistoryRef.current = false;
-    scrollToBottom(false, 8);
+    // 发送后滑到底(netcatty:新内容跟随用 smooth,只有会话切换/首屏用 instant)。
+    scrollToBottom(true);
   }, [scrollToBottomSignal, scrollToBottom]);
 
   useLayoutEffect(() => {
@@ -245,30 +314,22 @@ export function ThreadViewport({
     measureComposerDock();
   }, [composer, hasMessages, measureComposerDock]);
 
-  useEffect(() => cancelScheduledBottomScroll, [cancelScheduledBottomScroll]);
+  useEffect(() => () => {
+    cancelScheduledBottomScroll();
+    stopMirrorFollow();
+  }, [cancelScheduledBottomScroll, stopMirrorFollow]);
 
   useEffect(() => {
     const target = contentRef.current;
     if (!target || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       if (userReadingHistoryRef.current) return;
-      if (resizeTimerRef.current !== null) {
-        window.clearTimeout(resizeTimerRef.current);
-      }
-      resizeTimerRef.current = window.setTimeout(() => {
-        resizeTimerRef.current = null;
-        scrollToBottom(false, 4);
-      }, 100);
+      // 内容长高(流式输出)时增量镜像跟随:视口与内容锁死,天然平滑。
+      mirrorFollowToBottom();
     });
     observer.observe(target);
-    return () => {
-      observer.disconnect();
-      if (resizeTimerRef.current !== null) {
-        window.clearTimeout(resizeTimerRef.current);
-        resizeTimerRef.current = null;
-      }
-    };
-  }, [hasMessages, scrollToBottom]);
+    return () => observer.disconnect();
+  }, [hasMessages, mirrorFollowToBottom]);
 
   useEffect(() => {
     const target = composerDockRef.current;
@@ -283,23 +344,39 @@ export function ThreadViewport({
     if (!el) return;
 
     const onScroll = () => {
+      // 程序化滚动(跟随循环)产生的事件:视为仍在底部,不判定为用户离开。
+      if (isProgrammaticScrollRef.current) {
+        setAtBottom(true);
+        return;
+      }
       const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
       const near = distance < NEAR_BOTTOM_PX;
       setAtBottom(near);
       userReadingHistoryRef.current = !near;
+      // 主动离开底部:立刻松开跟随并作废已排队的滚动(netcatty:上滚即停)。
+      if (!near) interruptProgrammaticScroll();
     };
+    // 滚轮/触摸是用户接管意图:打断平滑跟随,粘性状态仍由后续 scroll 事件判定。
+    const onUserIntent = () => interruptProgrammaticScroll();
 
     onScroll();
     el.addEventListener("scroll", onScroll, { passive: true });
-    return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+    el.addEventListener("wheel", onUserIntent, { passive: true });
+    el.addEventListener("touchmove", onUserIntent, { passive: true });
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("wheel", onUserIntent);
+      el.removeEventListener("touchmove", onUserIntent);
+    };
+  }, [interruptProgrammaticScroll]);
 
   return (
-    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* 消息容器:独立滚动区,底部止于圆点行上方,消息进不到对话框区域。 */}
       <div
         ref={scrollRef}
         className={cn(
-          "absolute inset-0 overflow-y-auto scroll-auto scrollbar-thin",
+          "min-h-0 flex-1 overflow-y-auto scroll-auto scrollbar-thin",
           "[&::-webkit-scrollbar]:w-1.5",
           "[&::-webkit-scrollbar-thumb]:rounded-full",
           "[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30",
@@ -307,8 +384,8 @@ export function ThreadViewport({
         )}
       >
         {hasMessages ? (
-          <div ref={contentRef} className="mx-auto flex min-h-full w-full max-w-[64rem] flex-col">
-            <div className="flex-1 px-4 pb-8 pt-4">
+          <div ref={contentRef} className="mx-auto w-full max-w-[64rem]">
+            <div className="px-4 pb-8 pt-4">
               <div className="mx-auto w-full max-w-[49.5rem]">
                 <ThreadMessages
                   messages={visibleMessages}
@@ -319,33 +396,6 @@ export function ThreadViewport({
                   onRetry={onRetry}
                   userMessageIndexOffset={hiddenUserMessageCount}
                 />
-              </div>
-            </div>
-
-            <div
-              ref={composerDockRef}
-              data-testid="thread-composer-dock"
-              className="sticky bottom-0 z-10 mt-auto bg-background"
-              style={
-                glassActive
-                  ? {
-                      backgroundColor: `hsl(var(--background) / ${wallpaper.glassOpacity})`,
-                      backdropFilter: `blur(${WALLPAPER_GLASS_BLUR_PX}px)`,
-                      WebkitBackdropFilter: `blur(${WALLPAPER_GLASS_BLUR_PX}px)`,
-                    }
-                  : undefined
-              }
-            >
-              {hasMessages && userMessageIds.length > 1 && (
-                <ThreadNavDots
-                  scrollRef={scrollRef}
-                  userMessageIds={userMessageIds}
-                  hiddenUserMessageCount={hiddenUserMessageCount}
-                  userMessagePreviews={userMessagePreviews}
-                />
-              )}
-              <div className="px-4 pb-3">
-                {composer}
               </div>
             </div>
           </div>
@@ -362,13 +412,34 @@ export function ThreadViewport({
         <div ref={bottomRef} aria-hidden className="h-px" />
       </div>
 
+      {/* 输入区 footer:正常文档流排在消息容器下方,不再 sticky 覆盖消息。 */}
+      {hasMessages ? (
+        <div
+          ref={composerDockRef}
+          data-testid="thread-composer-dock"
+          className="relative z-10 shrink-0"
+        >
+          {userMessageIds.length > 1 && (
+            <ThreadNavDots
+              scrollRef={scrollRef}
+              userMessageIds={userMessageIds}
+              hiddenUserMessageCount={hiddenUserMessageCount}
+              userMessagePreviews={userMessagePreviews}
+            />
+          )}
+          <div className="px-4 pb-3">
+            {composer}
+          </div>
+        </div>
+      ) : null}
+
       {showScrollToBottomButton && !atBottom && (
         <Button
           variant="outline"
           size="icon"
           onClick={() => scrollToBottom(true, 1, { force: true })}
           className={cn(
-            /* Keep clear of sticky composer (textarea + toolbar + optional goal strip). */
+            /* 抬到输入区 footer 上方(输入框 + 工具栏 + 可选目标条)。 */
             "absolute left-1/2 z-20 h-8 w-8 -translate-x-1/2 rounded-full shadow-md",
             "bg-background/90 backdrop-blur",
             "animate-in fade-in-0 zoom-in-95",

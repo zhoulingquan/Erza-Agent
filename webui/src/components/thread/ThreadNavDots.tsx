@@ -3,8 +3,10 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 
-/** 导航条固定宽度(px)。所有圆点平均分布在此宽度内。 */
+/** 导航条最大宽度(px)。圆点居中排列,点少时聚在中间向两边扩展,点多时压缩但不超过此宽度。 */
 const CONTAINER_WIDTH = 192; // 对应 w-48
+/** 相邻圆点中心最大间距(px)。超过则留白,保证少点时居中而不是被顶到两端。 */
+const MAX_PITCH = 16;
 
 interface ThreadNavDotsProps {
   /** 滚动容器 ref(外层 overflow-y-auto 元素)。 */
@@ -21,6 +23,7 @@ interface ThreadNavDotsProps {
  * 顶部横点导航条:每个圆点对应用户的一次输入。
  *
  * - 固定宽度容器,不限圆点个数,全部显示
+ * - 整条居中:点少时聚在中间向两边对称扩展,点多时压缩间距但总宽不超容器
  * - 圆点尺寸与间隔随总数反比缩放(点数越多越小越紧凑)
  * - 点击圆点滚动定位到对应消息
  * - 当前可见区域内的圆点高亮
@@ -47,8 +50,8 @@ export function ThreadNavDots({
     return Math.min(8, Math.max(2, Math.round(slotWidth * 0.45)));
   }, [total]);
 
-  // 每个圆点按钮占据的 slot 宽度(px)
-  const slotWidth = total > 0 ? CONTAINER_WIDTH / total : 0;
+  // 每个圆点按钮占据的 slot 宽度(px),封顶后整条宽度 = total * pitch ≤ 容器宽
+  const slotWidth = total > 0 ? Math.min(CONTAINER_WIDTH / total, MAX_PITCH) : 0;
 
   // 通过 scroll 事件计算当前可见的 user message
   useEffect(() => {
@@ -124,8 +127,8 @@ export function ThreadNavDots({
       aria-label={t("thread.navDots", { defaultValue: "消息导航" })}
     >
       <div
-        className="pointer-events-auto flex flex-row items-center justify-between"
-        style={{ width: CONTAINER_WIDTH }}
+        className="pointer-events-auto flex flex-row items-center justify-center"
+        style={{ width: total * slotWidth }}
       >
         {allDots.map((dot) => {
           const isActive = dot.index === activeIndex;
